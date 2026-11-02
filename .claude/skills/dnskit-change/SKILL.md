@@ -137,9 +137,10 @@ change without missing a step. Work through the sections in order.
 7. **Section 11.** New files or environment variables.
 8. **Guide changelog.** One row.
 
-Also update README (its section for the command, with a real example), CLAUDE.md (the
-architecture bullet, testing notes and the Commands block), and CONTRIBUTING.md if a
-convention changed.
+Also update README (its section for the command, with a screenshot: add a `Shot` to
+`scripts/readme_screenshots.py` and run it, then reference `docs/images/<name>.svg`; rerun it
+for any command whose output changed), CLAUDE.md (the architecture bullet, testing notes
+and the Commands block), and CONTRIBUTING.md if a convention changed.
 
 **Examples must be captured from real runs** at 92 columns, never typed by hand:
 
