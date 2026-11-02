@@ -220,6 +220,18 @@ command and a renderer for it.
 The `dnskit-change` skill (`.claude/skills/dnskit-change/SKILL.md`) is the full checklist
 for a change: code, tests, live checks, the guide, and the commit/PR routine.
 
+## README screenshots
+
+The README's examples are SVG screenshots in `docs/images/`, not text. `python
+scripts/readme_screenshots.py [name ...]` regenerates them: each `Shot` runs the real command
+in-process with `cli_app.console` swapped for a recording `Console` (not a terminal, so no
+live progress) and `save_svg`. `use_demo_computer()` replaces `scan_adapters`,
+`configured_nameservers` and `read_hosts` in every `dnskit.core` module with a demo profile
+(Wi-Fi, 1.1.1.1 + 8.8.8.8, no hosts entries) and the displayed cache path, so no image shows
+a real machine; queries and connections stay real. Domains are reserved examples.
+`tests/test_readme_screenshots.py` checks capture offline and that every README image
+exists. The guide keeps its text examples.
+
 ## User guide
 
 `docs/USER_GUIDE.md` is the user-facing reference. Keep it current in the same change as

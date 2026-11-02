@@ -122,6 +122,19 @@ Replace personal details in examples (ISP DNS servers with `203.0.113.53`, VPN n
 user folders). Documentation addresses (`192.0.2.x`, `203.0.113.x`) and well-known public
 resolvers are fine.
 
+The README shows **screenshots** instead of text: SVGs in `docs/images/`, made by Rich's
+console recording. Regenerate them after changing a command's output (they need a network
+that allows DNS to outside servers):
+
+```bash
+python scripts/readme_screenshots.py            # all of them
+python scripts/readme_screenshots.py lookup     # or just some
+```
+
+The script runs every command on a demo computer (one Wi-Fi adapter using 1.1.1.1 and
+8.8.8.8, an empty hosts file) against the reserved example domains, so the images never show
+a real machine's details. A new screenshot goes in its `SHOTS` list.
+
 ## Pull requests
 
 - Start a branch from an up-to-date `main`. Base the pull request on `main`, not on
