@@ -13,6 +13,7 @@ from dnskit.cli import app as cli_app
 from dnskit.core import ProbeResult, local_check
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "readme_screenshots.py"
+README_IMAGES = "https://raw.githubusercontent.com/gladkhumalo/dnskit/main/docs/images/"
 
 
 def load_script():
@@ -95,6 +96,9 @@ def test_every_screenshot_in_the_readme_exists() -> None:
     used = set(re.findall(r"docs/images/([a-z-]+)\.svg", readme))
 
     assert used == names
+    # Absolute URLs, so the images also show on PyPI, which can't resolve relative paths.
+    assert re.findall(r"\]\((?!https://)[^)]*docs/images/", readme) == []
+    assert readme.count(f"]({README_IMAGES}") == len(names)
     for name in names:
         assert (SCRIPT.parents[1] / "docs" / "images" / f"{name}.svg").exists()
 

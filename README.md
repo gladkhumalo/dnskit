@@ -43,29 +43,26 @@ dnskit needs **Python 3.11 or newer** (`python --version` to check).
 their own environment and puts `dnskit` on your PATH, so it works from any terminal:
 
 ```bash
-pipx install git+https://github.com/gladkhumalo/dnskit.git@v0.1.0
+pipx install dnskit
 dnskit --help
 ```
 
-Drop `@v0.1.0` for the latest code on `main`. Each
-[release](https://github.com/gladkhumalo/dnskit/releases) also has a wheel attached:
-`pipx install dnskit-0.1.0-py3-none-any.whl` works too. To move to a newer release later,
-run the same command with its tag and `--force`.
+`pipx upgrade dnskit` moves to the newest release. For the latest code on `main` instead,
+use `pipx install git+https://github.com/gladkhumalo/dnskit.git`.
 
 **With pip, in a virtual environment:**
 
 ```bash
-git clone https://github.com/gladkhumalo/dnskit.git
-cd dnskit
 python -m venv .venv
 .venv\Scripts\activate          # Windows
 # source .venv/bin/activate     # macOS / Linux
-pip install .
+pip install dnskit
 dnskit --help
 ```
 
-The `dnskit` command then works whenever the virtual environment is active. See
-[CHANGELOG.md](CHANGELOG.md) for what's in each release.
+The `dnskit` command then works whenever the virtual environment is active. See the
+[changelog](https://github.com/gladkhumalo/dnskit/blob/main/CHANGELOG.md) for what's in
+each release.
 
 ## Quick start
 
@@ -77,7 +74,7 @@ Not sure where a problem is? Start with `doctor`. It checks your computer's DNS 
 the domain (records, the connection, email and DNSSEC) at the same time, and ranks what it
 finds:
 
-![dnskit doctor example.com: a health score of 95/100 and one minor email issue](docs/images/doctor.svg)
+![dnskit doctor example.com: a health score of 95/100 and one minor email issue](https://raw.githubusercontent.com/gladkhumalo/dnskit/main/docs/images/doctor.svg)
 
 It separates problems with **this computer** from problems with **the domain**, and lists
 notes (things worth knowing, with nothing to fix) separately. From there:
@@ -93,7 +90,7 @@ Nobody has the whole DNS: it's a tree of servers, each responsible for one level
 names. To find `example.com`, a resolver (your DNS server, or 8.8.8.8) asks its way down
 the tree. `dnskit trace` does exactly that, one step at a time, and shows each step:
 
-![dnskit trace example.com: from the root servers, to the com. servers, to example.com's nameservers](docs/images/trace.svg)
+![dnskit trace example.com: from the root servers, to the com. servers, to example.com's nameservers](https://raw.githubusercontent.com/gladkhumalo/dnskit/main/docs/images/trace.svg)
 
 1. **The root servers** (`.`) don't know `example.com`, but they know who runs `com.`.
    They *refer* the question to the `com.` servers. There are 13 root server names,
@@ -137,26 +134,26 @@ registrar points at nameservers that don't serve the domain.
 Looks up A, AAAA, MX, CNAME, NS and TXT at once, through the fastest of your DNS servers
 (`--type` for one type, `--server` to ask a specific server):
 
-![dnskit lookup example.com: A, AAAA, MX, CNAME, NS and TXT records in one table](docs/images/lookup.svg)
+![dnskit lookup example.com: A, AAAA, MX, CNAME, NS and TXT records in one table](https://raw.githubusercontent.com/gladkhumalo/dnskit/main/docs/images/lookup.svg)
 
 When a lookup fails, a panel says why ("Domain doesn't exist", "Query timed out", …) and
 what to try next.
 
-![dnskit lookup does-not-exist.example: a panel explaining that the domain doesn't exist](docs/images/lookup-missing.svg)
+![dnskit lookup does-not-exist.example: a panel explaining that the domain doesn't exist](https://raw.githubusercontent.com/gladkhumalo/dnskit/main/docs/images/lookup-missing.svg)
 
 ### reverse
 
 Finds the hostname for an IPv4 or IPv6 address (its PTR record), for an unknown address in
 a log or to check a mail server's reverse name:
 
-![dnskit reverse 8.8.8.8: the hostname dns.google.](docs/images/reverse.svg)
+![dnskit reverse 8.8.8.8: the hostname dns.google.](https://raw.githubusercontent.com/gladkhumalo/dnskit/main/docs/images/reverse.svg)
 
 ### compare
 
 Asks Google, Cloudflare, Quad9 and each of your own DNS servers the same question, and
 marks any that disagree. Useful when a site works on one network but not another:
 
-![dnskit compare example.com: Google, Cloudflare and Quad9 all agree](docs/images/compare.svg)
+![dnskit compare example.com: Google, Cloudflare and Quad9 all agree](https://raw.githubusercontent.com/gladkhumalo/dnskit/main/docs/images/compare.svg)
 
 ### email
 
@@ -166,7 +163,7 @@ mail (DMARC), and the signing keys (DKIM), each as pass, warn or fail with a fix
 <details>
 <summary><code>$ dnskit email example.com</code></summary>
 
-![dnskit email example.com: MX, SPF, DMARC and DKIM checks with a summary](docs/images/email.svg)
+![dnskit email example.com: MX, SPF, DMARC and DKIM checks with a summary](https://raw.githubusercontent.com/gladkhumalo/dnskit/main/docs/images/email.svg)
 
 </details>
 
@@ -180,7 +177,7 @@ the problems found and the command to flush the DNS cache:
 <details>
 <summary><code>$ dnskit local</code></summary>
 
-![dnskit local: adapters, DNS servers, network checks and the flush command](docs/images/local.svg)
+![dnskit local: adapters, DNS servers, network checks and the flush command](https://raw.githubusercontent.com/gladkhumalo/dnskit/main/docs/images/local.svg)
 
 </details>
 
@@ -189,14 +186,14 @@ the problems found and the command to flush the DNS cache:
 Tests each DNS server this computer uses and marks the one dnskit uses (the fastest). The
 choice is remembered for 5 minutes, so commands don't each wait for a dead server:
 
-![dnskit resolvers: each DNS server's response time, and the one in use](docs/images/resolvers.svg)
+![dnskit resolvers: each DNS server's response time, and the one in use](https://raw.githubusercontent.com/gladkhumalo/dnskit/main/docs/images/resolvers.svg)
 
 ### reach
 
 "The website won't load": looks the name up, connects to port 443 (or `--port`) on each
 address, and says whether the problem is DNS, the connection, or neither:
 
-![dnskit reach example.com: DNS and the connection both work](docs/images/reach.svg)
+![dnskit reach example.com: DNS and the connection both work](https://raw.githubusercontent.com/gladkhumalo/dnskit/main/docs/images/reach.svg)
 
 ### dnssec
 
@@ -206,7 +203,7 @@ itself, and warns when this computer's clock is wrong (which breaks validation):
 <details>
 <summary><code>$ dnskit dnssec example.com</code></summary>
 
-![dnskit dnssec example.com: every link of the chain of trust validates](docs/images/dnssec.svg)
+![dnskit dnssec example.com: every link of the chain of trust validates](https://raw.githubusercontent.com/gladkhumalo/dnskit/main/docs/images/dnssec.svg)
 
 </details>
 
@@ -219,7 +216,7 @@ apart from a CDN's location-based answers:
 <details>
 <summary><code>$ dnskit propagation example.com</code></summary>
 
-![dnskit propagation example.com: 14 resolvers worldwide, one differing by location](docs/images/propagation.svg)
+![dnskit propagation example.com: 14 resolvers worldwide, one differing by location](https://raw.githubusercontent.com/gladkhumalo/dnskit/main/docs/images/propagation.svg)
 
 </details>
 
@@ -265,7 +262,7 @@ does-not-exist.example    # a typo
 not a domain
 ```
 
-![dnskit batch domains.txt --check doctor --quick: three domains OK, one that doesn't exist, one line skipped](docs/images/batch.svg)
+![dnskit batch domains.txt --check doctor --quick: three domains OK, one that doesn't exist, one line skipped](https://raw.githubusercontent.com/gladkhumalo/dnskit/main/docs/images/batch.svg)
 
 ### watch
 
@@ -273,7 +270,7 @@ Re-checks a record every few seconds (30 by default) and beeps when the answer c
 `--until` stops as soon as the new value is live. Answers that only rotate between
 addresses already seen (a CDN) say "rotating (CDN)" instead of "CHANGED":
 
-![dnskit watch example.com: three checks, the answer unchanged](docs/images/watch.svg)
+![dnskit watch example.com: three checks, the answer unchanged](https://raw.githubusercontent.com/gladkhumalo/dnskit/main/docs/images/watch.svg)
 
 ```bash
 dnskit watch example.com --until 203.0.113.80 --interval 60
