@@ -39,6 +39,21 @@ error message, and step-by-step recipes for common DNS problems.
 
 dnskit needs **Python 3.11 or newer** (`python --version` to check).
 
+**With pipx (recommended).** [pipx](https://pipx.pypa.io/) installs command-line tools in
+their own environment and puts `dnskit` on your PATH, so it works from any terminal:
+
+```bash
+pipx install git+https://github.com/gladkhumalo/dnskit.git@v0.1.0
+dnskit --help
+```
+
+Drop `@v0.1.0` for the latest code on `main`. Each
+[release](https://github.com/gladkhumalo/dnskit/releases) also has a wheel attached:
+`pipx install dnskit-0.1.0-py3-none-any.whl` works too. To move to a newer release later,
+run the same command with its tag and `--force`.
+
+**With pip, in a virtual environment:**
+
 ```bash
 git clone https://github.com/gladkhumalo/dnskit.git
 cd dnskit
@@ -49,8 +64,8 @@ pip install .
 dnskit --help
 ```
 
-The `dnskit` command works whenever the virtual environment is active. To install it for
-your user instead, use [pipx](https://pipx.pypa.io/): run `pipx install .` in the folder.
+The `dnskit` command then works whenever the virtual environment is active. See
+[CHANGELOG.md](CHANGELOG.md) for what's in each release.
 
 ## Quick start
 

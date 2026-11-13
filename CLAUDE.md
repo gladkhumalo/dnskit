@@ -371,6 +371,12 @@ lookup failed / name doesn't exist, 2 invalid input.
   forks; a PR from this repository's own branch isn't run twice), on Ubuntu,
   Windows and macOS × Python 3.11 and 3.13, and uploads coverage.xml from one job.
 - CONTRIBUTING.md is the contributor-facing version of these conventions; keep it in step.
+- The version lives only in `pyproject.toml`; `dnskit.__version__` reads the installed
+  metadata (`importlib.metadata`), so reinstall (`pip install -e .`) after changing it.
+  User-visible changes get a line under `## [Unreleased]` in CHANGELOG.md (Keep a
+  Changelog). Pushing a `vX.Y.Z` tag runs `.github/workflows/release.yml`: tag must match
+  the version, build + `twine check`, install the wheel, then a GitHub Release whose notes
+  are `scripts/release_notes.py X.Y.Z` (that version's section). No PyPI publishing.
 
 ## Commands
 

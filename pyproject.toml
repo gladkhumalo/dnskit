@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dnskit"
-version = "0.1.0"
+version = "0.1.0"  # the only place it's set: dnskit.__version__ reads the installed metadata
 description = "A command-line DNS troubleshooting toolkit that explains what it finds."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -46,12 +46,27 @@ dev = [
 Homepage = "https://github.com/gladkhumalo/dnskit"
 Documentation = "https://github.com/gladkhumalo/dnskit/blob/main/docs/USER_GUIDE.md"
 Issues = "https://github.com/gladkhumalo/dnskit/issues"
+Changelog = "https://github.com/gladkhumalo/dnskit/blob/main/CHANGELOG.md"
+Source = "https://github.com/gladkhumalo/dnskit"
 
 [project.scripts]
 dnskit = "dnskit.cli.app:run"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/dnskit"]
+
+[tool.hatch.build.targets.sdist]
+# Only what's needed to build, test and read about the package: not local files such as
+# .claude/ or a domains.txt lying in the checkout.
+include = [
+    "/src/dnskit",
+    "/tests",
+    "/scripts",
+    "/docs",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/LICENSE",
+]
 
 [tool.ruff]
 line-length = 100

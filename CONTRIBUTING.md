@@ -143,3 +143,25 @@ a real machine's details. A new screenshot goes in its `SHOTS` list.
   such as a run with a VPN on.
 - In the pull request, list what you tested and what you couldn't (for example, macOS or a
   real VPN).
+- Add a line under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md) for anything a user
+  would notice.
+
+## Releasing
+
+The version is set in one place, `version` in `pyproject.toml`; `dnskit --version` reads it
+from the installed package. To release:
+
+1. In a pull request, set the new `version` and rename `## [Unreleased]` in CHANGELOG.md
+   to `## [X.Y.Z] - YYYY-MM-DD`, with a fresh empty `## [Unreleased]` above it and the
+   compare links at the bottom updated. Merge it.
+2. Tag the merge commit on `main` and push the tag:
+
+   ```bash
+   git tag -a vX.Y.Z -m "dnskit X.Y.Z"
+   git push origin vX.Y.Z
+   ```
+
+The `Release` workflow (`.github/workflows/release.yml`) then checks the tag matches the
+version, builds the wheel and source archive, checks they install and run, and creates the
+GitHub Release with that version's changelog section (`scripts/release_notes.py`) as its
+notes. Nothing is published to PyPI.
