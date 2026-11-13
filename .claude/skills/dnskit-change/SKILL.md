@@ -142,6 +142,9 @@ Also update README (its section for the command, with a screenshot: add a `Shot`
 for any command whose output changed), CLAUDE.md (the architecture bullet, testing notes
 and the Commands block), and CONTRIBUTING.md if a convention changed.
 
+Add a line under `## [Unreleased]` in CHANGELOG.md for anything a user would notice (Keep a
+Changelog sections: Added, Changed, Fixed, Removed). Releasing is in CONTRIBUTING.md.
+
 **Examples must be captured from real runs** at 92 columns, never typed by hand:
 
 - To get a real "changed" or "broken" state, find one that exists: `pool.ntp.org`

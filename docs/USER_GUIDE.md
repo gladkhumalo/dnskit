@@ -80,6 +80,22 @@ dnskit helps you find out why. It:
 
 You need **Python 3.11 or newer** (`python --version`) and **git**.
 
+**The quickest way: pipx.** [pipx](https://pipx.pypa.io/) installs a command-line tool in
+its own environment and puts it on your PATH, so `dnskit` works in every terminal without
+activating anything:
+
+```bash
+pipx install git+https://github.com/gladkhumalo/dnskit.git@v0.1.0
+```
+
+`@v0.1.0` is the release; leave it out for the latest code. Each
+[GitHub release](https://github.com/gladkhumalo/dnskit/releases) also has a wheel
+(`dnskit-0.1.0-py3-none-any.whl`) you can install with `pipx install` or `pip install`. To
+move to a newer release, run the command again with its tag and `--force`.
+[CHANGELOG.md](../CHANGELOG.md) lists what changed in each release.
+
+**From a copy of the code, in a virtual environment:**
+
 ```bash
 git clone https://github.com/gladkhumalo/dnskit.git
 cd dnskit
@@ -113,9 +129,8 @@ dnskit --version
 
 **Tips**
 
-- `dnskit` is available whenever the virtual environment is active. To have it available
-  everywhere, install it with [pipx](https://pipx.pypa.io/) from the repository folder:
-  `pipx install .`
+- With a virtual environment, `dnskit` is available whenever it's active. `pipx install .`
+  in the repository folder installs your copy for every terminal instead.
 - Tab completion for your shell: run `dnskit --install-completion` once, then restart the
   shell.
 
@@ -3190,3 +3205,4 @@ This guide is updated with every new feature.
 | 0.1.0, JSON, batch, watch and config | `--json` on every command (one object with `command`, `exit_code`, `summary`, `diagnosis` and the full `report`; invalid input too). New `batch` (lookup, doctor or email on a list of domains, a few at a time, with a summary table; this computer checked once for doctor), `watch` (re-checks a record every N seconds, beeps on a change, `--until`, `--count`, `--exit-on-change`; failed lookups never count as changes; JSON Lines with `--json`) and `config` (shows or creates a TOML settings file with defaults per command and custom resolver lists for compare and propagation). New files: the config file and `DNSKIT_CONFIG`. |
 | 0.1.0, JSON and watch polish | `--json`: timings rounded to 0.1 ms, `probed_at` in ISO 8601, TXT values without quotes (multi-part records joined). `watch` remembers every address seen: changes between addresses already seen say **rotating (CDN)** in blue, without a beep, and don't stop `--exit-on-change`; `--strict` (or `strict = true` in the config) brings back the old behaviour. On stopping, it lists everything seen. `batch --check doctor` shows the most important issue in the Summary column, or **no issues**. |
 | 0.1.0, release checks | Every command's `--help` ends with examples and its exit codes, and the main `--help` says where to start (`dnskit doctor`). `dnskit --help | head` no longer prints a traceback on Windows when the reader stops early. `python -m dnskit` works like the `dnskit` command. New CONTRIBUTING.md; the README is rewritten with an example of every command. |
+| 0.1.0, release | Installation starts with `pipx install` from a release tag, and mentions the wheel attached to each GitHub release. New CHANGELOG.md. |
