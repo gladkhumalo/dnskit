@@ -21,7 +21,7 @@ suggested fix, not just raw records.
 Works on Windows, macOS and Linux. Built on [dnspython](https://www.dnspython.org/),
 [Typer](https://typer.tiangolo.com/) and [Rich](https://rich.readthedocs.io/).
 
-📖 **[The dnskit User Guide](docs/USER_GUIDE.md)** covers every command and option, every
+📖 **[The dnskit User Guide](https://github.com/gladkhumalo/dnskit/blob/main/docs/USER_GUIDE.md)** covers every command and option, every
 error message, and step-by-step recipes for common DNS problems.
 
 ## Contents
@@ -68,7 +68,7 @@ each release.
 
 The screenshots below are real runs against the reserved example domains, on a demo
 computer whose DNS servers are 1.1.1.1 and 8.8.8.8
-([scripts/readme_screenshots.py](scripts/readme_screenshots.py) regenerates them).
+([scripts/readme_screenshots.py](https://github.com/gladkhumalo/dnskit/blob/main/scripts/readme_screenshots.py) regenerates them).
 
 Not sure where a problem is? Start with `doctor`. It checks your computer's DNS setup and
 the domain (records, the connection, email and DNSSEC) at the same time, and ranks what it
@@ -310,15 +310,15 @@ elsewhere; set `DNSKIT_CONFIG` to use another.
 | `130` | `watch` only: stopped with Ctrl+C. |
 
 Each command's `--help` lists its own exit codes, and the guide has
-[the full list](docs/USER_GUIDE.md#10-using-dnskit-in-scripts).
+[the full list](https://github.com/gladkhumalo/dnskit/blob/main/docs/USER_GUIDE.md#10-using-dnskit-in-scripts).
 
 ## Contributing
 
-Bug reports and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for
+Bug reports and pull requests are welcome. See [CONTRIBUTING.md](https://github.com/gladkhumalo/dnskit/blob/main/CONTRIBUTING.md) for
 setting up a development environment, the architecture, and how changes are tested.
 
 ## License
 
-dnskit is released under the [MIT License](LICENSE): you may use, change and share it,
+dnskit is released under the [MIT License](https://github.com/gladkhumalo/dnskit/blob/main/LICENSE): you may use, change and share it,
 including commercially, as long as the copyright notice comes along. It comes with no
 warranty.
