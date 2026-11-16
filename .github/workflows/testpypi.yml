@@ -1,0 +1,69 @@
+name: TestPyPI
+
+# Run by hand (Actions → TestPyPI → Run workflow) to try a release on test.pypi.org before
+# tagging it: the same build as release.yml (build.yml), uploaded with Trusted Publishing
+# in the "testpypi" environment, then installed back from TestPyPI and run.
+#
+# TestPyPI never accepts the same version twice, so a version that's already there is
+# skipped rather than failing the run; the install check then tests the copy already there.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag or commit to build
+        type: string
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    with:
+      ref: ${{ inputs.ref }}
+
+  testpypi:
+    name: Publish to TestPyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/dnskit/${{ needs.build.outputs.version }}/
+    permissions:
+      id-token: write  # Trusted Publishing: TestPyPI accepts this job's OIDC token
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+
+  check:
+    name: Install from TestPyPI
+    needs: [build, testpypi]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install from TestPyPI and run
+        # Only dnskit itself comes from TestPyPI (anyone can upload anything there); its
+        # dependencies come from the real PyPI. A new upload can take a minute to appear.
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            if pip download --no-deps --index-url https://test.pypi.org/simple/ \
+                "dnskit==$VERSION" -d testpypi; then
+              break
+            fi
+            sleep 20
+          done
+          python -m venv /tmp/try
+          /tmp/try/bin/pip install testpypi/dnskit-"$VERSION"-py3-none-any.whl
+          test "$(/tmp/try/bin/dnskit --version)" = "dnskit $VERSION"
+          /tmp/try/bin/dnskit lookup example.com

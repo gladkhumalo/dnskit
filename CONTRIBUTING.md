@@ -164,4 +164,15 @@ from the installed package. To release:
 The `Release` workflow (`.github/workflows/release.yml`) then checks the tag matches the
 version, builds the wheel and source archive, checks they install and run, and creates the
 GitHub Release with that version's changelog section (`scripts/release_notes.py`) as its
-notes. Nothing is published to PyPI.
+notes. Only after that succeeds does it upload the same files to PyPI, in the `pypi`
+environment, which waits for a maintainer's approval (Actions → the run → Review
+deployments). The upload uses PyPI's Trusted Publishing: there's no API token anywhere.
+
+To try a release first, run the **TestPyPI** workflow by hand (Actions → TestPyPI → Run
+workflow, on `main` or a branch). It runs the same build, uploads it to test.pypi.org (a
+version that's already there is skipped: TestPyPI never accepts the same version twice),
+then installs it back from TestPyPI and runs it. Check the project page there, especially
+that the README and its screenshots display.
+
+The README's images use absolute `raw.githubusercontent.com/.../main/` URLs, so they also
+show on PyPI. A new screenshot only appears once it's merged to `main`.

@@ -376,7 +376,12 @@ lookup failed / name doesn't exist, 2 invalid input.
   User-visible changes get a line under `## [Unreleased]` in CHANGELOG.md (Keep a
   Changelog). Pushing a `vX.Y.Z` tag runs `.github/workflows/release.yml`: tag must match
   the version, build + `twine check`, install the wheel, then a GitHub Release whose notes
-  are `scripts/release_notes.py X.Y.Z` (that version's section). No PyPI publishing.
+  are `scripts/release_notes.py X.Y.Z` (that version's section), then (only if that
+  worked) PyPI upload via Trusted Publishing in the `pypi` environment (manual approval).
+  The build is the reusable `build.yml`, shared with the manual `testpypi.yml`
+  (workflow_dispatch → test.pypi.org, `skip-existing`, then installs it back and runs it).
+  README images are absolute raw.githubusercontent.com `main` URLs so they show on PyPI;
+  `test_readme_screenshots.py` enforces it.
 
 ## Commands
 
