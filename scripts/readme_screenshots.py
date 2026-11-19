@@ -10,15 +10,27 @@ it on a network that allows DNS to outside servers (not behind a VPN that blocks
 So that the screenshots show no real computer's details, every command sees the same demo
 computer: one Wi-Fi adapter whose DNS servers are 1.1.1.1 and 8.8.8.8, and a hosts file with
 nothing in it. The domains are the reserved examples (example.com, example.net, …).
+
+GitHub and PyPI show each SVG as an image, and an image can't download the web font Rich
+links to, so a viewer's browser would draw it with whatever monospace font it has: box
+characters of the wrong size, and table borders that don't line up. So each SVG embeds the
+font itself (Fira Code, as Rich uses, under the SIL Open Font License): just the characters
+that image uses, without ligatures, so `->` and `==` look as they do in a terminal. Needs
+fontTools (`pip install -e ".[dev]"`).
 """
 
+import base64
 import contextlib
+import hashlib
+import html
 import importlib
 import io
 import os
 import pkgutil
+import re
 import sys
 import tempfile
+import urllib.request
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,7 +46,18 @@ from dnskit.core.local import hosts_path
 
 ROOT = Path(__file__).resolve().parents[1]
 IMAGES = ROOT / "docs" / "images"
-WIDTH = 92  # columns, as in the guide's text examples
+# Columns. The resolver footer ("Resolver: … (auto: fastest of 2 system nameservers, 36 ms;
+# cached, probed 1s ago) · 22 ms total") is about 101; this leaves room for slower timings.
+WIDTH = 104
+
+# The Fira Code release Rich's SVGs link to, with the files' SHA-256, checked on download.
+FONT_URL = "https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff2/FiraCode-{weight}.woff2"
+FONT_SHA256 = {
+    "Regular": "a6ce59520b90e15d7062ffef214f94c8add5a4085c0bbb1683602ef227a4d1fe",
+    "Bold": "d778c19803c672d294663e9283c7b752cc125ab266f0ddb8e53b039da92caf67",
+}
+# Rich's @font-face rules: `src: local("FiraCode-Regular"), url(...) ..., url(...) ...;`
+_FONT_SRC = re.compile(r'src: local\("FiraCode-(Regular|Bold)"\).*?;', re.DOTALL)
 
 DEMO_DNS = ("1.1.1.1", "8.8.8.8")
 DEMO_SCAN = AdapterScan(
@@ -92,8 +115,69 @@ def use_demo_computer() -> None:
     cli_app.cache_path = lambda: display  # type: ignore[attr-defined]
 
 
-def capture(shot: Shot, domains_file: Path, out_dir: Path = IMAGES) -> Path:
-    """Run one command and save its output as docs/images/<name>.svg."""
+def download_fonts() -> dict[str, bytes]:
+    """Fira Code Regular and Bold (woff2), checked against FONT_SHA256."""
+    fonts = {}
+    for weight, expected in FONT_SHA256.items():
+        url = FONT_URL.format(weight=weight)
+        with urllib.request.urlopen(url, timeout=30) as response:
+            data: bytes = response.read()
+        if hashlib.sha256(data).hexdigest() != expected:
+            raise RuntimeError(f"{url} isn't the expected file (SHA-256 mismatch)")
+        fonts[weight] = data
+    return fonts
+
+
+def svg_characters(svg: str) -> set[str]:
+    """Every character the SVG's text shows."""
+    texts = re.findall(r"<text[^>]*>([^<]*)</text>", svg)
+    return set(html.unescape("".join(texts)))
+
+
+def subset_font(font: bytes, characters: set[str]) -> bytes:
+    """`font` cut down to `characters`, as woff2, without ligatures or other substitutions."""
+    from fontTools import subset  # only needed here; tests that don't embed don't need it
+
+    options = subset.Options()
+    options.flavor = "woff2"
+    options.layout_features = []  # no ligatures: `->` stays two characters, as in a terminal
+    options.name_IDs = ["*"]  # keep the copyright and licence notices
+    options.notdef_outline = True
+    subsetter = subset.Subsetter(options)
+    loaded = subset.load_font(io.BytesIO(font), options)
+    subsetter.populate(unicodes=[ord(c) for c in characters])
+    subsetter.subset(loaded)
+    out = io.BytesIO()
+    subset.save_font(loaded, out, options)
+    return out.getvalue()
+
+
+def embed_fonts(svg: str, fonts: dict[str, bytes]) -> str:
+    """Rich's SVG with its web-font links replaced by the fonts themselves."""
+    found = len(_FONT_SRC.findall(svg))
+    if found != len(fonts):  # Rich's SVG template changed: update _FONT_SRC
+        raise RuntimeError(f"expected {len(fonts)} @font-face rules in the SVG, found {found}")
+    characters = svg_characters(svg)
+    data = {
+        weight: base64.b64encode(subset_font(font, characters)).decode("ascii")
+        for weight, font in fonts.items()
+    }
+
+    def embedded(match: re.Match[str]) -> str:
+        return f'src: url("data:font/woff2;base64,{data[match.group(1)]}") format("woff2");'
+
+    svg = _FONT_SRC.sub(embedded, svg)
+    notice = "<!-- Font: Fira Code (subset), The Fira Code Project Authors, SIL OFL 1.1 -->"
+    return svg.replace("<style>", f"{notice}\n    <style>", 1)
+
+
+def capture(
+    shot: Shot,
+    domains_file: Path,
+    out_dir: Path = IMAGES,
+    fonts: dict[str, bytes] | None = None,
+) -> Path:
+    """Run one command and save its output as docs/images/<name>.svg, with `fonts` embedded."""
     console = Console(
         record=True,
         width=WIDTH,
@@ -108,8 +192,11 @@ def capture(shot: Shot, domains_file: Path, out_dir: Path = IMAGES) -> Path:
     console.print(f"[bold green]$[/bold green] dnskit {shown}", highlight=False)
     with contextlib.suppress(SystemExit):  # the exit code doesn't matter for a picture
         cli_app.app(args, prog_name="dnskit", standalone_mode=False)
+    svg = console.export_svg(title=f"dnskit {shown}", theme=MONOKAI)
+    if fonts:
+        svg = embed_fonts(svg, fonts)
     path = out_dir / f"{shot.name}.svg"
-    console.save_svg(str(path), title=f"dnskit {shown}", theme=MONOKAI)
+    path.write_text(svg, encoding="utf-8")
     return path
 
 
@@ -126,10 +213,11 @@ def main(names: Sequence[str]) -> int:
         domains = Path(tmp) / "domains.txt"
         domains.write_text(DEMO_DOMAINS, encoding="utf-8")
         use_demo_computer()
+        fonts = download_fonts()
         for shot in SHOTS:
             if names and shot.name not in names:
                 continue
-            path = capture(shot, domains)
+            path = capture(shot, domains, fonts=fonts)
             sys.stdout.write(f"wrote {path.relative_to(ROOT)}\n")
     return 0
 

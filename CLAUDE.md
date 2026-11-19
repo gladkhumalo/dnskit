@@ -229,8 +229,13 @@ live progress) and `save_svg`. `use_demo_computer()` replaces `scan_adapters`,
 `configured_nameservers` and `read_hosts` in every `dnskit.core` module with a demo profile
 (Wi-Fi, 1.1.1.1 + 8.8.8.8, no hosts entries) and the displayed cache path, so no image shows
 a real machine; queries and connections stay real. Domains are reserved examples.
-`tests/test_readme_screenshots.py` checks capture offline and that every README image
-exists. The guide keeps its text examples.
+`WIDTH` is 104 so the resolver footer doesn't wrap. `embed_fonts` replaces Rich's
+@font-face links (`_FONT_SRC`) with a woff2 subset of Fira Code (`download_fonts`, pinned
+by `FONT_SHA256`; fontTools, in the dev extras) holding just that SVG's characters, without
+ligatures: an SVG shown as an `<img>` (GitHub, PyPI) can't fetch web fonts, and the fallback
+font misaligns box drawing. `tests/test_readme_screenshots.py` checks capture and embedding
+offline (a tiny FontBuilder font), that every README image exists, embeds its fonts and has
+no wrapped footer. The guide keeps its text examples.
 
 ## User guide
 
