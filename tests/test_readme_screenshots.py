@@ -1,11 +1,16 @@
+import base64
 import html
 import importlib
 import importlib.util
+import io
 import pkgutil
 import re
 from pathlib import Path
 
 import pytest
+from fontTools.fontBuilder import FontBuilder
+from fontTools.pens.ttGlyphPen import TTGlyphPen
+from fontTools.ttLib import TTFont
 
 import dnskit.core
 from dnskit import __version__
@@ -62,6 +67,57 @@ def test_the_domains_file_shows_as_domains_txt(screenshots, tmp_path: Path) -> N
     svg = screenshots.capture(shot, tmp_path / "list.txt", out_dir=tmp_path).read_text("utf-8")
 
     assert "domains.txt" in svg and "list.txt" not in svg
+
+
+def test_capture_embeds_the_fonts(screenshots, tmp_path: Path) -> None:
+    fonts = {"Regular": make_font("Regular"), "Bold": make_font("Bold")}
+
+    path = screenshots.capture(
+        screenshots.Shot("version", ("--version",)), tmp_path, out_dir=tmp_path, fonts=fonts
+    )
+
+    svg = path.read_text(encoding="utf-8")
+    assert "cdnjs" not in svg and 'local("FiraCode' not in svg  # nothing left to download
+    embedded = re.findall(r'url\("data:font/woff2;base64,([^"]+)"\) format\("woff2"\)', svg)
+    assert len(embedded) == 2
+    for data in embedded:
+        font = TTFont(io.BytesIO(base64.b64decode(data)))
+        assert font.flavor == "woff2"
+        assert "GSUB" not in font  # no ligatures
+        # Only the characters the screenshot shows: the test font also has a "z", unused.
+        assert {chr(code) for code in font.getBestCmap()} == {"$", "d", "n"}
+    assert "SIL OFL" in svg  # the licence notice
+
+
+def test_embedding_needs_both_font_rules(screenshots) -> None:
+    with pytest.raises(RuntimeError, match="expected 2 @font-face rules"):
+        screenshots.embed_fonts("<svg><text>x</text></svg>", {"Regular": b"", "Bold": b""})
+
+
+def make_font(style: str) -> bytes:
+    """A tiny TrueType font with a square glyph for a few characters."""
+    characters = "$dnz"
+    names = [".notdef", *(f"u{ord(c):04X}" for c in characters)]
+    builder = FontBuilder(1000, isTTF=True)
+    builder.setupGlyphOrder(names)
+    builder.setupCharacterMap({ord(c): f"u{ord(c):04X}" for c in characters})
+    glyphs = {}
+    for name in names:
+        pen = TTGlyphPen(None)
+        pen.moveTo((0, 0))
+        pen.lineTo((0, 500))
+        pen.lineTo((500, 500))
+        pen.closePath()
+        glyphs[name] = pen.glyph()
+    builder.setupGlyf(glyphs)
+    builder.setupHorizontalMetrics(dict.fromkeys(names, (600, 0)))
+    builder.setupHorizontalHeader(ascent=800, descent=-200)
+    builder.setupNameTable({"familyName": "Test Mono", "styleName": style})
+    builder.setupOS2()
+    builder.setupPost()
+    out = io.BytesIO()
+    builder.save(out)
+    return out.getvalue()
 
 
 def test_the_demo_computer_replaces_this_one(screenshots, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -128,3 +184,17 @@ def _no_ipv6(local_mod):
     connectivity = importlib.import_module("dnskit.core.connectivity")
     state = connectivity.IPv6State.NOT_AVAILABLE
     return connectivity.IPv6Check(state, None, "www.google.com", None, "not available")
+
+
+@pytest.mark.parametrize("name", [shot.name for shot in load_script().SHOTS])
+def test_each_screenshot_renders_without_downloads_or_wrapped_footers(name: str) -> None:
+    svg = (SCRIPT.parents[1] / "docs" / "images" / f"{name}.svg").read_text(encoding="utf-8")
+
+    # The font is inside the SVG: an image on GitHub or PyPI can't download one.
+    assert svg.count('url("data:font/woff2;base64,') == 2
+    assert "cdnjs" not in svg
+    # Each line is one <text> row per y position; none is a footer's wrapped-over "ms total".
+    rows: dict[str, str] = {}
+    for y, text in re.findall(r'<text[^>]*?y="([\d.]+)"[^>]*>([^<]*)</text>', svg):
+        rows[y] = rows.get(y, "") + html.unescape(text).replace(chr(0xA0), " ")
+    assert not [row for row in rows.values() if re.fullmatch(r"\s*(\d+ )?m?s? ?total\s*", row)]

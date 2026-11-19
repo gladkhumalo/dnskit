@@ -135,6 +135,13 @@ The script runs every command on a demo computer (one Wi-Fi adapter using 1.1.1.
 8.8.8.8, an empty hosts file) against the reserved example domains, so the images never show
 a real machine's details. A new screenshot goes in its `SHOTS` list.
 
+The console is 104 columns wide, so the resolver footer ("… · 22 ms total") fits on one line.
+Each SVG embeds the font it uses (a subset of Fira Code, downloaded once per run and checked
+against a SHA-256), because GitHub and PyPI show SVGs as images, which can't download a web
+font: without it, browsers fall back to another font and the table borders don't line up.
+Check the images afterwards: a resolver that times out once shows up in the picture, so
+rerun just that one (`python scripts/readme_screenshots.py batch`).
+
 ## Pull requests
 
 - Start a branch from an up-to-date `main`. Base the pull request on `main`, not on

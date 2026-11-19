@@ -40,6 +40,7 @@ dev = [
     "pytest-cov>=5",
     "ruff>=0.6",
     "mypy>=1.11",
+    "fonttools[woff]>=4.50",  # scripts/readme_screenshots.py embeds fonts in the SVGs
 ]
 
 [project.urls]
