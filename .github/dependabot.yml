@@ -1,0 +1,20 @@
+version: 2
+
+# Weekly update checks. Minor and patch updates arrive as one pull request per ecosystem;
+# a new major version still gets its own pull request, since it can break things.
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"  # Dependabot looks in .github/workflows/ from here
+    schedule:
+      interval: "weekly"
+    groups:
+      actions-minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "pip"
+    directory: "/"  # pyproject.toml: [project] dependencies and the dev extras
+    schedule:
+      interval: "weekly"
+    groups:
+      pip-minor-and-patch:
+        update-types: ["minor", "patch"]
