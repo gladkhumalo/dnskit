@@ -387,6 +387,15 @@ lookup failed / name doesn't exist, 2 invalid input.
   (workflow_dispatch → test.pypi.org, `skip-existing`, then installs it back and runs it).
   README images are absolute raw.githubusercontent.com `main` URLs so they show on PyPI;
   `test_readme_screenshots.py` enforces it.
+- Workflows: every third-party action is pinned to a full commit SHA with a `# vX.Y.Z`
+  comment (resolve it from the release tag; Dependabot keeps pins current), checkouts use
+  `persist-credentials: false`, and each workflow has read-only top-level permissions with
+  anything more on the one job that needs it. `scorecard.yml` (OpenSSF Scorecard,
+  `publish_results: true` for the README badge) must stay within the Scorecard API's
+  workflow restrictions: its analysis job may only run checkout, upload-artifact,
+  codeql `upload-sarif`, scorecard-action and harden-runner, with no `run` steps or env.
+  Its `cache-mode: none` is unknown to actionlint ≤ 1.7.12 (`-ignore 'unexpected key
+  "cache-mode"'`). Security reports go through private vulnerability reporting (SECURITY.md).
 
 ## Commands
 

@@ -17,6 +17,9 @@ Open an issue with:
 Remove anything you'd rather not share first: your ISP's DNS server addresses, internal
 hostnames, VPN names.
 
+**Security vulnerabilities are different:** don't open a public issue. Report them privately,
+as described in [SECURITY.md](SECURITY.md).
+
 ## Development setup
 
 You need Python 3.11 or newer.
