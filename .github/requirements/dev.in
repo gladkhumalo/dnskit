@@ -1,0 +1,24 @@
+# What CI's checks install: dnskit's dependencies and its dev tools, locked with hashes in
+# dev.txt. tests/test_requirements.py checks this list against pyproject.toml.
+# Regenerate dev.txt after changing it; see "Locked CI dependencies" in CONTRIBUTING.md.
+
+# [project] dependencies
+dnspython[dnssec]
+typer
+rich
+
+# [project.optional-dependencies] dev
+pytest
+pytest-cov
+ruff
+mypy
+fonttools[woff]
+
+# The build backend, for `pip install --no-deps --no-build-isolation -e .`, and what
+# hatchling needs for an editable install
+hatchling
+editables
+
+# Windows only (click and pytest need it there). Listed so that a lock compiled on Linux, as
+# Dependabot does, still has it for the Windows jobs.
+colorama

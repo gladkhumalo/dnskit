@@ -93,6 +93,14 @@ virtual environment. dnskit comes from [PyPI](https://pypi.org/project/dnskit/);
 [GitHub release](https://github.com/gladkhumalo/dnskit/releases) has the same files
 attached. [CHANGELOG.md](../CHANGELOG.md) lists what changed in each release.
 
+To check that a file you downloaded from a GitHub release was built by dnskit's release
+workflow from this repository, and not changed since, use the
+[GitHub CLI](https://cli.github.com/) (releases after 0.1.0):
+
+```bash
+gh attestation verify dnskit-0.1.1-py3-none-any.whl --repo gladkhumalo/dnskit
+```
+
 **From a copy of the code** (for the latest unreleased changes, or to work on dnskit; you
 also need **git**):
 
@@ -3206,3 +3214,4 @@ This guide is updated with every new feature.
 | 0.1.0, JSON and watch polish | `--json`: timings rounded to 0.1 ms, `probed_at` in ISO 8601, TXT values without quotes (multi-part records joined). `watch` remembers every address seen: changes between addresses already seen say **rotating (CDN)** in blue, without a beep, and don't stop `--exit-on-change`; `--strict` (or `strict = true` in the config) brings back the old behaviour. On stopping, it lists everything seen. `batch --check doctor` shows the most important issue in the Summary column, or **no issues**. |
 | 0.1.0, release checks | Every command's `--help` ends with examples and its exit codes, and the main `--help` says where to start (`dnskit doctor`). `dnskit --help | head` no longer prints a traceback on Windows when the reader stops early. `python -m dnskit` works like the `dnskit` command. New CONTRIBUTING.md; the README is rewritten with an example of every command. |
 | 0.1.0, release | Installation starts with `pipx install dnskit` from PyPI; git is only needed to install from a copy of the code. New CHANGELOG.md. |
+| Next release, provenance | Installation: how to check a release file's signed build provenance with `gh attestation verify`. |

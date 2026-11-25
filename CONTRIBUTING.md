@@ -45,6 +45,31 @@ mypy                    # type check (strict, src/ only)
 pytest --cov            # tests, with coverage (must stay at 95% or above)
 ```
 
+### Locked CI dependencies
+
+CI doesn't install whatever is newest: it installs from hash-locked files in
+`.github/requirements/`, so a tampered or surprise release of a tool can't slip in.
+
+| Input (what to install) | Lock (exact versions + hashes) | Used by |
+|---|---|---|
+| `dev.in` | `dev.txt` | the checks in `ci.yml` (all three systems, Python 3.11 and 3.13) |
+| `build.in` | `build.txt` | the release build in `build.yml` (Ubuntu) |
+
+Dependabot updates the locks weekly. After changing pyproject.toml's dependencies or dev
+extras, or an `.in` file, regenerate the lock with pip-tools **under Python 3.11** (the oldest
+supported version, so the 3.11 jobs can install every pinned version):
+
+```bash
+cd .github/requirements
+pip-compile --allow-unsafe --generate-hashes --no-emit-index-url --strip-extras --output-file=dev.txt dev.in
+pip-compile --allow-unsafe --generate-hashes --no-emit-index-url --strip-extras --output-file=build.txt build.in
+```
+
+`tests/test_requirements.py` fails if `dev.in` misses a dependency from pyproject.toml or a
+lock is missing something its `.in` file lists. A package that only one system needs has to
+be listed in the `.in` file by name (see the comments there), or the lock compiled on another
+system leaves it out and that system's job fails.
+
 ## How the code is organised
 
 ```text
@@ -88,6 +113,9 @@ changing.
 3. **Keep exit codes stable.** Scripts depend on them.
 
 ## Tests
+
+**Every pull request that adds or changes behaviour includes tests for it**, in the same pull
+request. New features and bug fixes without tests aren't merged.
 
 - **Never touch the live network or the real system configuration.** Fixtures fake the
   resolver, the network and the OS. `tests/fakes.py` has a fake resolver and a fake
@@ -172,9 +200,10 @@ from the installed package. To release:
    ```
 
 The `Release` workflow (`.github/workflows/release.yml`) then checks the tag matches the
-version, builds the wheel and source archive, checks they install and run, and creates the
-GitHub Release with that version's changelog section (`scripts/release_notes.py`) as its
-notes. Only after that succeeds does it upload the same files to PyPI, in the `pypi`
+version, builds the wheel and source archive, checks they install and run, signs SLSA build
+provenance for them (`actions/attest`, attached to the release as
+`dnskit-X.Y.Z.sigstore.json`), and creates the GitHub Release with that version's
+changelog section (`scripts/release_notes.py`) as its notes. Only after that succeeds does it upload the same files to PyPI, in the `pypi`
 environment, which waits for a maintainer's approval (Actions → the run → Review
 deployments). The upload uses PyPI's Trusted Publishing: there's no API token anywhere.
 

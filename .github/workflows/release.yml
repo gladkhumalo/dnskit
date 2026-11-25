@@ -2,8 +2,10 @@ name: Release
 
 # Pushing a version tag (git tag -a v0.1.0 -m "dnskit 0.1.0" && git push origin v0.1.0):
 #   1. build    — build.yml: the tag must match the version; build, check, install, run.
-#   2. github   — a GitHub Release with that version's CHANGELOG.md section as its notes
-#                 and the wheel and source archive attached.
+#   2. github   — signed SLSA build provenance for the wheel and source archive
+#                 (actions/attest: Sigstore, recorded in the repository's attestations),
+#                 then a GitHub Release with that version's CHANGELOG.md section as its
+#                 notes and the wheel, source archive and provenance bundle attached.
 #   3. pypi     — only after the GitHub Release exists: upload the same files to PyPI with
 #                 Trusted Publishing (no API token). It runs in the "pypi" environment, so
 #                 it waits for a reviewer's approval if the environment requires one.
@@ -26,6 +28,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write  # to create the release
+      id-token: write  # to get a Sigstore certificate that signs the provenance
+      attestations: write  # to record the provenance in the repository's attestations
+      artifact-metadata: write  # actions/attest also records the files it attests
     env:
       VERSION: ${{ needs.build.outputs.version }}
     steps:
@@ -40,13 +45,22 @@ jobs:
         with:
           name: dist
           path: dist/
+      - name: Attest build provenance
+        # Verify a file with: gh attestation verify <file> --repo gladkhumalo/dnskit
+        id: provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/*
       - name: Release notes from CHANGELOG.md
         run: python scripts/release_notes.py "$VERSION" > release-notes.md
       - name: Create the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          BUNDLE: ${{ steps.provenance.outputs.bundle-path }}
+        # The provenance bundle goes on the release only, not into dist/, which PyPI uploads.
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* \
+          cp "$BUNDLE" "dnskit-$VERSION.sigstore.json"
+          gh release create "$GITHUB_REF_NAME" dist/* "dnskit-$VERSION.sigstore.json" \
             --title "dnskit $VERSION" \
             --notes-file release-notes.md \
             --verify-tag
