@@ -1,5 +1,7 @@
 # dnskit
 
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/gladkhumalo/dnskit/badge)](https://scorecard.dev/viewer/?uri=github.com/gladkhumalo/dnskit)
+
 **Find out why DNS isn't working, in plain English.**
 
 dnskit is a command-line DNS troubleshooting toolkit. It tells you why a name doesn't
