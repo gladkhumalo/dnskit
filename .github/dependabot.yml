@@ -12,7 +12,9 @@ updates:
         update-types: ["minor", "patch"]
 
   - package-ecosystem: "pip"
-    directory: "/"  # pyproject.toml: [project] dependencies and the dev extras
+    directories:
+      - "/"  # pyproject.toml: [project] dependencies and the dev extras
+      - "/.github/requirements"  # CI's hash-locked pip-compile files (*.in -> *.txt)
     schedule:
       interval: "weekly"
     groups:

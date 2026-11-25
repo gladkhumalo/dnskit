@@ -48,15 +48,19 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Build
+        # build, twine and the build backend from the hash-locked build.txt; --no-isolation
+        # builds with that hatchling instead of downloading one.
         run: |
-          python -m pip install build twine
-          python -m build
+          python -m pip install --require-hashes -r .github/requirements/build.txt
+          python -m build --no-isolation
           twine check --strict dist/*
       - name: Check the wheel installs and runs
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           python -m venv /tmp/try
+          # Unlocked on purpose: dependencies resolve fresh, as they do for anyone installing
+          # dnskit, so this catches a release that doesn't work with them.
           /tmp/try/bin/pip install dist/*.whl
           test "$(/tmp/try/bin/dnskit --version)" = "dnskit $VERSION"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

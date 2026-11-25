@@ -396,6 +396,17 @@ lookup failed / name doesn't exist, 2 invalid input.
   codeql `upload-sarif`, scorecard-action and harden-runner, with no `run` steps or env.
   Its `cache-mode: none` is unknown to actionlint ≤ 1.7.12 (`-ignore 'unexpected key
   "cache-mode"'`). Security reports go through private vulnerability reporting (SECURITY.md).
+- CI installs from hash-locked pip-compile files in `.github/requirements/` (`dev.in` →
+  `dev.txt` for ci.yml: `pip install --require-hashes -r`, then `pip install --no-deps
+  --no-build-isolation -e .`; `build.in` → `build.txt` for build.yml: `python -m build
+  --no-isolation`). Recompile under Python 3.11 (commands in CONTRIBUTING.md); `dev.in` lists
+  pyproject's dependencies and dev extras by name plus hatchling, editables and Windows-only
+  colorama; `build.in` lists Linux-only jeepney/secretstorage. `tests/test_requirements.py`
+  checks both. The two "install like a user" wheel checks (build.yml, testpypi.yml) stay
+  unlocked on purpose. Dependabot's pip entry covers `/` and `/.github/requirements`.
+  release.yml's `github` job attests provenance (`actions/attest`, id-token / attestations /
+  artifact-metadata write) and attaches the bundle as `dnskit-X.Y.Z.sigstore.json`, never in
+  `dist/` (PyPI uploads everything there).
 
 ## Commands
 

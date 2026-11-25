@@ -6,6 +6,12 @@ All notable changes to dnskit are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Releases come with signed build provenance: GitHub's attestations for the wheel and source
+  archive, also attached to the release as `dnskit-X.Y.Z.sigstore.json`. Check a downloaded
+  file with `gh attestation verify <file> --repo gladkhumalo/dnskit`.
+
 ## [0.1.0] - 2026-11-13
 
 The first release. Every command explains what it finds in plain English, with a suggested

@@ -64,6 +64,8 @@ jobs:
             sleep 20
           done
           python -m venv /tmp/try
-          /tmp/try/bin/pip install testpypi/dnskit-"$VERSION"-py3-none-any.whl
+          # The only file in testpypi/ is the wheel downloaded above. Its dependencies resolve
+          # fresh from PyPI, as they do for anyone installing dnskit.
+          /tmp/try/bin/pip install testpypi/*.whl
           test "$(/tmp/try/bin/dnskit --version)" = "dnskit $VERSION"
           /tmp/try/bin/dnskit lookup example.com

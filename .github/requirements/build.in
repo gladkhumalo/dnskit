@@ -1,0 +1,13 @@
+# What the release build installs (build.yml, Ubuntu), locked with hashes in build.txt.
+# Regenerate build.txt after changing it; see "Locked CI dependencies" in CONTRIBUTING.md.
+
+build
+twine
+# The build backend: `python -m build --no-isolation` uses this one instead of downloading
+# its own.
+hatchling
+
+# Linux only (twine's keyring needs them there). Listed so that a lock compiled on Windows
+# still has them for the Ubuntu runner.
+jeepney
+secretstorage
