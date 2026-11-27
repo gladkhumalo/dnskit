@@ -205,7 +205,10 @@ structured so the DNS logic can be reused by more than one front end.
   - `diagnosis.py` — `explain()` / `explain_reverse()` turn a `LookupStatus` into a
     `Diagnosis` (title, plain-English explanation, next-step suggestion). It lives in core so
     the web UI can reuse the wording; keep its text free of CLI flags where possible.
-- `src/dnskit/cli/` — presentation only. `app.py` parses arguments with Typer and calls
+- `src/dnskit/cli/` — presentation only. Every outside string printed goes through
+  `render.escape` (Rich markup escaping, plus C0/DEL/C1 control characters, newlines
+  included, shown as zone-file `\DDD` escapes so DNS data can't drive the terminal); never
+  import `rich.markup.escape` directly. Reports and `--json` keep the real text. `app.py` parses arguments with Typer and calls
   into `core`; `render.py` turns core results into Rich output. No DNS logic here.
   - The entry point is `run()` (the `dnskit` script and `python -m dnskit`): it calls the
     app and turns a Windows `OSError(EINVAL)` from a closed pipe into a quiet exit 1, which

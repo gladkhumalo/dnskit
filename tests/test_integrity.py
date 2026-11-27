@@ -163,7 +163,8 @@ def test_google_without_an_address_is_intercepted(answer: RawAnswer, response: s
 
 
 def test_cloudflare_answers_with_your_address() -> None:
-    check = classify_cloudflare(RawAnswer("NOERROR", ("203.0.113.5",)))
+    # Cloudflare echoes your public address: 9.9.9.9 stands in for one (it must be global).
+    check = classify_cloudflare(RawAnswer("NOERROR", ("9.9.9.9",)))
 
     assert check.verdict is Verdict.OK
     assert check.summary == "answered by Cloudflare"  # your address stays out of the output
@@ -175,6 +176,12 @@ def test_cloudflare_answers_with_your_address() -> None:
         (RawAnswer("SERVFAIL"), "SERVFAIL"),
         (RawAnswer("REFUSED"), "REFUSED"),
         (RawAnswer("NOERROR", ("resolver.isp.example",)), "resolver.isp.example"),
+        # Not a public address, so not what Cloudflare would echo: something else answered.
+        (RawAnswer("NOERROR", ("192.168.1.1",)), "192.168.1.1"),
+        (RawAnswer("NOERROR", ("10.0.0.1",)), "10.0.0.1"),
+        (RawAnswer("NOERROR", ("127.0.0.1",)), "127.0.0.1"),
+        (RawAnswer("NOERROR", ("203.0.113.5",)), "203.0.113.5"),
+        (RawAnswer("NOERROR", ("fd00::1",)), "fd00::1"),
     ],
 )
 def test_cloudflare_other_answers_are_intercepted(answer: RawAnswer, response: str) -> None:

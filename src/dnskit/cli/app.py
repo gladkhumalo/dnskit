@@ -11,12 +11,12 @@ from typing import Annotated, Any, NoReturn
 import typer
 from rich.console import Console
 from rich.live import Live
-from rich.markup import escape
 
 from dnskit import __version__
 from dnskit.cli.render import (
     BatchProgress,
     DoctorProgress,
+    escape,
     render_batch,
     render_compare,
     render_config,

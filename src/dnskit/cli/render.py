@@ -6,7 +6,7 @@ import time
 from collections.abc import Sequence
 
 from rich.console import Console
-from rich.markup import escape
+from rich.markup import escape as escape_markup
 from rich.padding import Padding
 from rich.panel import Panel
 from rich.spinner import Spinner
@@ -92,6 +92,21 @@ _FAULTS = {
 
 # Hosts files used as ad blockers can have thousands of lines; show only the first few.
 _MAX_HOSTS_ROWS = 15
+
+# Control characters (C0, DEL, C1) shown as DNS zone-file escapes, as dnspython prints them.
+# Raw, they'd be terminal escape sequences: a TXT record could clear or reset the terminal,
+# move the cursor, set the window title or repaint a verdict. Newlines count too, so a value
+# can't start a line of its own.
+_VISIBLE_CONTROLS = {code: f"\\{code:03d}" for code in (*range(0x20), 0x7F, *range(0x80, 0xA0))}
+
+
+def escape(text: str) -> str:
+    """Text from outside dnskit, safe to print: Rich markup escaped, control characters shown.
+
+    Every DNS answer, error message and file name goes through this before it's printed. The
+    reports themselves (and --json) keep the real text.
+    """
+    return escape_markup(text.translate(_VISIBLE_CONTROLS))
 
 
 def _age(probed_at: float) -> str:

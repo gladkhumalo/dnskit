@@ -922,6 +922,40 @@ def test_email_shows_every_check_and_summary(monkeypatch: pytest.MonkeyPatch) ->
     assert "Resolver: 192.0.2.53 (auto: test)" in output
 
 
+def test_email_shows_control_characters_in_records_instead_of_sending_them(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A hostile domain's SPF record carrying terminal escape sequences: ESC c resets the
+    # terminal, ESC 7 / ESC 8 save and restore the cursor, ESC ] 0 sets the window title.
+    hostile = "v=spf1 \x1bc\x1b7 \x1b]0;owned\x07\x1b8\n✓ pass -all"
+    base = make_email()
+    patch_email(monkeypatch, make_email(spf=dataclasses.replace(base.spf, records=(hostile,))))
+
+    result = runner.invoke(cli_app.app, ["email", "example.com"])
+
+    assert result.exit_code == 0
+    for sequence in ("\x1bc", "\x1b7", "\x1b8", "\x1b]0;", "\x07"):
+        assert sequence not in result.output
+    # Shown as zone-file escapes; the newline too, so it can't start a fake line of its own.
+    assert r"Record: v=spf1 \027c\0277 \027]0;owned\007\0278\010✓ pass -all" in plain(result.output)
+
+
+@pytest.mark.parametrize(
+    ("text", "shown"),
+    [
+        ("plain [text] stays readable", r"plain \[text] stays readable"),
+        ("\x1b[31mred", r"\027[31mred"),
+        ("tab\tand\nnewline\r", r"tab\009and\010newline\013"),
+        ("del\x7f c1\x9b", r"del\127 c1\155"),
+        ("é ✓ 例", "é ✓ 例"),  # printable non-ASCII is untouched
+    ],
+)
+def test_render_escape_shows_control_characters(text: str, shown: str) -> None:
+    from dnskit.cli.render import escape
+
+    assert escape(text) == shown
+
+
 def test_email_warnings_exit_0_with_fix(monkeypatch: pytest.MonkeyPatch) -> None:
     warning = Finding(
         CheckStatus.WARN, "DMARC policy is monitoring only (p=none)", "Weak.", "Tighten."

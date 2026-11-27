@@ -65,6 +65,22 @@ _STANDARD_HOST_NAMES = frozenset(
         "ip6-allhosts",
     }
 )
+# The standard names that mean "this computer". Pointed anywhere else (`203.0.113.9
+# localhost`), they're an override like any other and are reported. The rest of the standard
+# names (broadcasthost, the ip6- multicast names) and the computer's own name point at other
+# addresses on a stock system, so they're never reported.
+_LOOPBACK_HOST_NAMES = frozenset(
+    {
+        "localhost",
+        "localhost.localdomain",
+        "localhost4",
+        "localhost4.localdomain4",
+        "localhost6",
+        "localhost6.localdomain6",
+        "ip6-localhost",
+        "ip6-loopback",
+    }
+)
 
 # Public resolvers that are practically never down: when one doesn't answer, something
 # between this computer and it (a firewall, a VPN, the network) is blocking it.
@@ -155,7 +171,7 @@ class HostsKind(StrEnum):
 class HostsEntry:
     line: int
     ip: str
-    names: tuple[str, ...]  # non-standard names on the line
+    names: tuple[str, ...]  # the overridden names (not localhost pointing at this computer)
     kind: HostsKind
 
 
@@ -335,11 +351,19 @@ def parse_hosts(text: str, hostname: str = "") -> list[HostsEntry]:
         fields = line.split("#", 1)[0].split()
         if len(fields) < 2:
             continue
-        ip, names = fields[0], tuple(n for n in fields[1:] if n.lower() not in standard)
+        ip = fields[0]
         try:
             address = ipaddress.ip_address(ip.split("%", 1)[0])
         except ValueError:
             continue  # not a valid line; the OS ignores it too
+        # Old macOS ships `fe80::1%lo0 localhost`: link-local on the loopback interface.
+        this_computer = address.is_loopback or address.is_unspecified or address.is_link_local
+        names = tuple(
+            n
+            for n in fields[1:]
+            if n.lower() not in standard
+            or (n.lower() in _LOOPBACK_HOST_NAMES and not this_computer)
+        )
         if not names:
             continue
         if address.is_unspecified:

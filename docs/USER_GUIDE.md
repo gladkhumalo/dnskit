@@ -1388,14 +1388,16 @@ What each part means:
     Google answers with the address of its own DNS server, and Cloudflare (1.1.1.1) for
     `whoami.cloudflare` (class CH, TXT), which only Cloudflare answers with your address.
     If the answer comes from an address that isn't Google's, or Cloudflare's test gets
-    SERVFAIL, REFUSED or no address, something on the way (router, network, ISP or VPN)
-    answered in their place. No reply at all is reported as **?**, not as interception.
+    SERVFAIL, REFUSED, no address or a private one (your public address is what Cloudflare
+    echoes), something on the way (router, network, ISP or VPN) answered in their place. No reply at all is reported as **?**, not as interception.
   - **IPv6** checks whether this computer has an IPv6 address. If it does, dnskit looks up
     `www.google.com`'s IPv6 (AAAA) address and connects to it on port 443. No IPv6 at all
     is fine (apps use IPv4). **Broken** means AAAA lookups work but IPv6 connections fail,
     which makes apps that try IPv6 first slow.
-- **Hosts file** lists entries that send a name somewhere without asking DNS (the standard
-  `localhost` lines are left out). The **Effect** column says `blocked` (points at
+- **Hosts file** lists entries that send a name somewhere without asking DNS. The standard
+  lines every system ships with are left out (`localhost` pointing at this computer, the
+  `ip6-` and `broadcasthost` names, this computer's own name), but `localhost` pointing at
+  any other address is listed, since that's an override too. The **Effect** column says `blocked` (points at
   `0.0.0.0`, as ad blockers do), `this computer` (points at `127.0.0.1`) or `redirect` (any
   other address). Only the first 15 lines are shown.
 - **Flush the DNS cache** is the right command for your OS: `ipconfig /flushdns` on
@@ -2421,6 +2423,11 @@ In a full lookup, a few types having no records is normal (most domains have no 
 the top level), so dnskit only explains "no records" when **no** type had any. With
 `--type`, it's always explained.
 
+Records and messages come from servers dnskit doesn't control. Control characters in them
+(such as the escape character, which terminals treat as a command) are shown in DNS
+zone-file style, `\027`, instead of being sent to your terminal. A record shown with
+`\027[…` or `\010` in it contains those characters. `--json` keeps the real text.
+
 **3. The resolver line.** For example:
 
 ```text
@@ -3223,4 +3230,5 @@ This guide is updated with every new feature.
 | 0.1.0, release checks | Every command's `--help` ends with examples and its exit codes, and the main `--help` says where to start (`dnskit doctor`). `dnskit --help | head` no longer prints a traceback on Windows when the reader stops early. `python -m dnskit` works like the `dnskit` command. New CONTRIBUTING.md; the README is rewritten with an example of every command. |
 | 0.1.0, release | Installation starts with `pipx install dnskit` from PyPI; git is only needed to install from a copy of the code. New CHANGELOG.md. |
 | Next release, provenance | Installation: how to check a release file's signed build provenance with `gh attestation verify`. |
+| Next release, untrusted text | Control characters in records and messages are shown as `\027`-style escapes, never sent to the terminal ([Reading the output](#6-reading-the-output)). `local`: `localhost` pointing anywhere but this computer is listed as a hosts file override; Cloudflare's interception test treats a private address in its answer as interception. |
 | Next release, DNSSEC denials | `dnssec` checks the signed NSEC/NSEC3 proof behind "no DS record" and "doesn't exist". The Result column names the proof (**(NSEC proof)**, **(NSEC3 proof)**, **(NSEC3 opt-out proof)**). Without valid proof the result is the new **✗ A DNSSEC denial for *name* can't be verified** (exit code 1), not "DNSSEC isn't enabled" or "doesn't exist". A DS query that fails (SERVFAIL) is **? Couldn't check**, no longer "not signed". google.com example recaptured. |

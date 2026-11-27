@@ -58,8 +58,9 @@ change without missing a step. Work through the sections in order.
   Live progress (`Live(...)`, like `DoctorProgress` and `BatchProgress`) only when
   `console.is_terminal and not as_json`.
 - **Rendering.** Add a renderer to `src/dnskit/cli/render.py`. Wrap every piece of
-  outside text in `escape(...)`: Rich treats `[lookup]` and `[defaults]` as markup tags
-  and silently drops them.
+  outside text in render.py's own `escape(...)`, never `rich.markup.escape`: Rich treats
+  `[lookup]` and `[defaults]` as markup tags and silently drops them, and DNS data can carry
+  control characters that would be terminal escape sequences (ours shows them as `\027`).
 - **Config settings.** If the new option should be settable in the config file, add it to
   `COMMAND_SETTINGS` in `core/config.py`, under its long option name without the dashes.
   If that name differs from the Python parameter name, add the pair to
