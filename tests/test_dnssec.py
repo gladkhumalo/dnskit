@@ -1,6 +1,7 @@
 """DNSSEC tests with real signatures: a test root, com. and example.com., signed with
 throwaway Ed25519 keys, and the root trust anchor swapped for the test root's key."""
 
+import base64
 import importlib
 import time
 from datetime import UTC, datetime, timedelta
@@ -9,6 +10,7 @@ from types import SimpleNamespace
 import dns.dnssec
 import dns.message
 import dns.name
+import dns.rdata
 import dns.rrset
 import pytest
 from cryptography.hazmat.primitives.asymmetric import ed25519
@@ -57,6 +59,39 @@ class Zone:
         sig = dns.dnssec.sign(records, private, self.name, key, inception, expiration)
         return dns.rrset.from_rdata(records.name, records.ttl, sig)
 
+    def signed(self, records: dns.rrset.RRset) -> list[dns.rrset.RRset]:
+        return [records, self.sign(records)]
+
+    def nsec(self, owner: str, nxt: str, types: str = "RRSIG NSEC") -> list[dns.rrset.RRset]:
+        """A signed NSEC record: no names between `owner` and `nxt`, `types` at `owner`."""
+        return self.signed(rrset(owner, "NSEC", f"{nxt} {types}"))
+
+    def nsec3_match(self, name: str, types: str = "RRSIG", opt_out: bool = False):
+        """A signed NSEC3 record for `name` itself, listing `types`."""
+        hashed = nsec3_hash(name)
+        return self._nsec3(hashed, _shift(hashed, 1), types, opt_out)
+
+    def nsec3_cover(self, name: str, opt_out: bool = False) -> list[dns.rrset.RRset]:
+        """A signed NSEC3 record whose span covers `name`'s hash."""
+        hashed = nsec3_hash(name)
+        return self._nsec3(_shift(hashed, -1), _shift(hashed, 1), "", opt_out)
+
+    def _nsec3(self, owner: bytes, nxt: bytes, types: str, opt_out: bool):
+        label = base64.b32hexencode(owner).decode().lower()
+        nxt_text = base64.b32hexencode(nxt).decode()
+        flags = 1 if opt_out else 0
+        return self.signed(
+            rrset(f"{label}.{self.name}", "NSEC3", f"1 {flags} 0 AB {nxt_text} {types}".strip())
+        )
+
+
+def nsec3_hash(name: str) -> bytes:
+    return base64.b32hexdecode(dns.dnssec.nsec3_hash(name, "AB", 0, 1))
+
+
+def _shift(hashed: bytes, by: int) -> bytes:
+    return (int.from_bytes(hashed) + by).to_bytes(len(hashed))
+
 
 def today_serial() -> str:
     return f"{datetime.now(UTC):%Y%m%d}00"
@@ -78,7 +113,14 @@ def world(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
         sets = [records] + ([signer.sign(records, **kw)] if signer else [])
         state.answers[(name, rtype)] = ("NOERROR", sets)
 
+    def deny(name: str, rtypes: str, *proof: list, rcode: str = "NOERROR") -> None:
+        """Answer `rtypes` for `name` with no records, and the proof in the authority."""
+        authority = [r for records in proof for r in records]
+        for rtype in rtypes.split():
+            state.answers[(name, rtype)] = (rcode, [], authority)
+
     state.put = put
+    state.deny = deny
     put(".", "DNSKEY", root.dnskey, root, ksk=True)
     put(".", "SOA", rrset(".", "SOA", f"a.root-servers.net. nstld. {today_serial()} 1 2 3 4"), root)
     for child, parent in ((com, root), (example, com)):
@@ -98,10 +140,12 @@ def world(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
         """A resolver for the world; `strips` ones drop signatures when `state.strip`."""
 
         def resolver(query: dns.message.Message) -> dns.message.Message:
-            rcode, sets = state.answers.get(question(query), ("NOERROR", []))
+            rcode, sets, *rest = state.answers.get(question(query), ("NOERROR", []))
+            authority = rest[0] if rest else []
             if strips and state.strip:
                 sets = [s for s in sets if s.rdtype != dns.rdatatype.RRSIG]
-            return reply(query, answer=sets, rcode=rcode)
+                authority = [s for s in authority if s.rdtype != dns.rdatatype.RRSIG]
+            return reply(query, answer=sets, authority=authority, rcode=rcode)
 
         return resolver
 
@@ -149,6 +193,7 @@ def test_a_fully_signed_chain_validates(world: SimpleNamespace) -> None:
 
 def test_names_inside_a_zone_belong_to_it(world: SimpleNamespace) -> None:
     world.put("www.example.com.", "A", rrset("www.example.com.", "A", "192.0.2.81"), world.example)
+    world.deny("www.example.com.", "NS DS", world.example.nsec("www.example.com.", "example.com."))
 
     report = dnssec_check("www.example.com")
 
@@ -157,14 +202,20 @@ def test_names_inside_a_zone_belong_to_it(world: SimpleNamespace) -> None:
     assert report.records[-1].name == "www.example.com."
 
 
+def unsigned_delegation(world: SimpleNamespace) -> None:
+    """com. proves example.com. is delegated (NS) without a DS record."""
+    world.deny("example.com.", "DS", world.com.nsec("example.com.", "f.com.", "NS RRSIG NSEC"))
+
+
 def test_no_ds_means_dnssec_is_off(world: SimpleNamespace) -> None:
-    del world.answers[("example.com.", "DS")]
+    unsigned_delegation(world)
     del world.answers[("example.com.", "DNSKEY")]
 
     report = dnssec_check("example.com")
 
     assert report.status is DnssecStatus.INSECURE
     assert report.zones[-1].status is ZoneStatus.UNSIGNED
+    assert report.zones[-1].summary == "no DS record at com. (NSEC proof): not signed"
     assert report.records == ()
     diagnosis = explain_dnssec(report)
     assert diagnosis.title == "DNSSEC isn't enabled for example.com"
@@ -173,11 +224,12 @@ def test_no_ds_means_dnssec_is_off(world: SimpleNamespace) -> None:
 
 
 def test_keys_without_a_ds_are_half_set_up(world: SimpleNamespace) -> None:
-    del world.answers[("example.com.", "DS")]
+    unsigned_delegation(world)
 
     report = dnssec_check("example.com")
 
     assert report.status is DnssecStatus.INSECURE
+    assert "(NSEC proof): the chain stops here" in report.zones[-1].summary
     assert explain_dnssec(report).title == "DNSSEC is only half set up for example.com"
 
 
@@ -326,12 +378,16 @@ def test_a_silent_private_server_isnt_called_blocked(world: SimpleNamespace) -> 
 
 
 def test_a_name_that_doesnt_exist(world: SimpleNamespace) -> None:
-    world.answers[("missing.example.com.", "NS")] = ("NXDOMAIN", [])
+    proof = world.example.nsec("example.com.", "www.example.com.", "NS SOA RRSIG NSEC DNSKEY")
+    world.deny("missing.example.com.", "NS DS DNSKEY A", proof, rcode="NXDOMAIN")
 
     report = dnssec_check("missing.example.com")
 
     assert report.name_missing
-    assert explain_dnssec(report).title == "missing.example.com doesn't exist"
+    assert report.status is DnssecStatus.SECURE
+    diagnosis = explain_dnssec(report)
+    assert diagnosis.title == "missing.example.com doesn't exist"
+    assert "signed NSEC/NSEC3 records prove" in diagnosis.explanation
 
 
 def test_invalid_names_raise(world: SimpleNamespace) -> None:
@@ -548,3 +604,161 @@ def test_an_unreadable_root_serial_leaves_the_clock_unknown(world: SimpleNamespa
     assert report.clock.reference is None
     assert report.clock.state is ClockState.UNKNOWN
     assert report.status is DnssecStatus.SECURE  # the chain itself still validates
+
+
+# --- Denials must be proven ----------------------------------------------------------------
+
+
+def test_a_stripped_ds_is_not_reported_as_unsigned(world: SimpleNamespace) -> None:
+    """Someone on the path hides example.com's DS and keys (a downgrade), with no proof."""
+    world.deny("example.com.", "DS DNSKEY")
+
+    report = dnssec_check("example.com")
+
+    assert report.status is DnssecStatus.BOGUS
+    zone = report.zones[-1]
+    assert (zone.zone, zone.status, zone.kind) == (
+        "example.com.",
+        ZoneStatus.BOGUS,
+        BogusKind.UNPROVEN_DENIAL,
+    )
+    assert zone.summary == (
+        "com. says there's no DS record, but no NSEC or NSEC3 records came with it"
+    )
+    diagnosis = explain_dnssec(report)
+    assert diagnosis.title == "A DNSSEC denial for example.com can't be verified"
+    assert "may be forged" in diagnosis.explanation
+    assert "--server 8.8.8.8" in diagnosis.suggestion
+
+
+def test_a_forged_nxdomain_is_not_reported_as_missing(world: SimpleNamespace) -> None:
+    world.put("www.example.com.", "A", rrset("www.example.com.", "A", "192.0.2.81"), world.example)
+    world.deny("www.example.com.", "NS DS DNSKEY A", rcode="NXDOMAIN")
+
+    report = dnssec_check("www.example.com")
+
+    assert not report.name_missing
+    assert report.status is DnssecStatus.BOGUS
+    zone = report.zones[-1]
+    assert (zone.zone, zone.kind) == ("www.example.com.", BogusKind.UNPROVEN_DENIAL)
+    assert zone.summary == (
+        "example.com. says it doesn't exist, but no NSEC or NSEC3 records came with it"
+    )
+
+
+def test_an_nxdomain_only_for_the_ds_query_needs_proof_too(world: SimpleNamespace) -> None:
+    world.deny("www.example.com.", "DS", rcode="NXDOMAIN")
+
+    report = dnssec_check("www.example.com")
+
+    assert report.zones[-1].kind is BogusKind.UNPROVEN_DENIAL
+
+
+def test_the_nxdomain_proof_may_come_with_the_ds_answer(world: SimpleNamespace) -> None:
+    proof = world.example.nsec("example.com.", "www.example.com.", "NS SOA RRSIG NSEC DNSKEY")
+    world.deny("missing.example.com.", "NS", rcode="NXDOMAIN")
+    world.deny("missing.example.com.", "DS", proof, rcode="NXDOMAIN")
+
+    assert dnssec_check("missing.example.com").name_missing
+
+
+def test_a_replayed_proof_for_another_name_doesnt_count(world: SimpleNamespace) -> None:
+    """A genuine, signed NSEC record that's about a different part of com."""
+    world.deny("example.com.", "DS DNSKEY", world.com.nsec("a.com.", "b.com.", "NS RRSIG NSEC"))
+
+    report = dnssec_check("example.com")
+
+    assert report.status is DnssecStatus.BOGUS
+    assert report.zones[-1].summary.endswith("but its NSEC/NSEC3 records don't prove it")
+
+
+def test_a_proof_signed_by_the_wrong_zone_doesnt_count(world: SimpleNamespace) -> None:
+    proof = world.example.signed(rrset("example.com.", "NSEC", "f.com. NS RRSIG NSEC"))
+    world.deny("example.com.", "DS DNSKEY", proof)
+
+    report = dnssec_check("example.com")
+
+    assert report.zones[-1].summary.endswith(
+        "but the signatures on its NSEC/NSEC3 records don't verify"
+    )
+
+
+def test_a_proof_whose_record_lists_a_ds_doesnt_count(world: SimpleNamespace) -> None:
+    proof = world.com.nsec("example.com.", "f.com.", "NS DS RRSIG NSEC")
+    world.deny("example.com.", "DS DNSKEY", proof)
+
+    assert dnssec_check("example.com").status is DnssecStatus.BOGUS
+
+
+def test_an_nsec3_proof_of_an_unsigned_delegation(world: SimpleNamespace) -> None:
+    world.deny("example.com.", "DS DNSKEY", world.com.nsec3_match("example.com.", "NS"))
+
+    report = dnssec_check("example.com")
+
+    assert report.status is DnssecStatus.INSECURE
+    assert report.zones[-1].summary == "no DS record at com. (NSEC3 proof): not signed"
+
+
+def test_an_nsec3_opt_out_span_is_unsigned(world: SimpleNamespace) -> None:
+    """Like most of .com: unsigned delegations have no NSEC3 records of their own."""
+    proof = world.com.nsec3_match("com.", "NS SOA RRSIG DNSKEY NSEC3PARAM")
+    proof += world.com.nsec3_cover("example.com.", opt_out=True)
+    world.deny("example.com.", "DS DNSKEY", proof)
+
+    report = dnssec_check("example.com")
+
+    assert report.status is DnssecStatus.INSECURE
+    assert report.zones[-1].summary == "no DS record at com. (NSEC3 opt-out proof): not signed"
+
+
+def test_an_nsec3_span_without_opt_out_proves_no_ds_only_for_a_wildcard(
+    world: SimpleNamespace,
+) -> None:
+    proof = world.com.nsec3_match("com.", "NS SOA RRSIG DNSKEY NSEC3PARAM")
+    proof += world.com.nsec3_cover("example.com.")
+    world.deny("example.com.", "DS DNSKEY", proof)
+
+    assert dnssec_check("example.com").status is DnssecStatus.BOGUS
+
+
+def test_an_nsec3_nxdomain_proof(world: SimpleNamespace) -> None:
+    proof = world.example.nsec3_match("example.com.", "NS SOA RRSIG DNSKEY NSEC3PARAM")
+    proof += world.example.nsec3_cover("missing.example.com.")
+    proof += world.example.nsec3_cover("*.example.com.")
+    world.deny("missing.example.com.", "NS DS DNSKEY A", proof, rcode="NXDOMAIN")
+
+    report = dnssec_check("missing.example.com")
+
+    assert report.name_missing
+    assert report.status is DnssecStatus.SECURE
+
+
+def test_an_nsec3_nxdomain_proof_must_rule_out_a_wildcard(world: SimpleNamespace) -> None:
+    proof = world.example.nsec3_match("example.com.", "NS SOA RRSIG DNSKEY NSEC3PARAM")
+    proof += world.example.nsec3_cover("missing.example.com.")
+    world.deny("missing.example.com.", "NS DS DNSKEY A", proof, rcode="NXDOMAIN")
+
+    report = dnssec_check("missing.example.com")
+
+    assert not report.name_missing
+    assert report.zones[-1].kind is BogusKind.UNPROVEN_DENIAL
+
+
+def test_a_failed_ds_query_is_unknown_not_unsigned(world: SimpleNamespace) -> None:
+    world.answers[("example.com.", "DS")] = ("SERVFAIL", [])
+
+    report = dnssec_check("example.com")
+
+    assert report.status is DnssecStatus.UNKNOWN
+    assert report.zones[-1].summary == "couldn't fetch: SERVFAIL"
+
+
+def test_compact_denial_shows_a_missing_name(world: SimpleNamespace) -> None:
+    """Some signers answer NOERROR with an NSEC listing NXNAME instead of NXDOMAIN."""
+    proof = world.example.nsec("gone.example.com.", "\000.gone.example.com.", "RRSIG NSEC TYPE128")
+    world.deny("gone.example.com.", "NS DS DNSKEY A", proof)
+
+    report = dnssec_check("gone.example.com")
+
+    assert report.name_missing
+    assert report.status is DnssecStatus.SECURE

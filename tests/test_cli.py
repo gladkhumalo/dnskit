@@ -1370,6 +1370,26 @@ def test_dnssec_broken_exits_1_and_warns_about_the_clock(monkeypatch: pytest.Mon
     assert "Validation failed: this computer's clock is wrong" in output
 
 
+def test_dnssec_unproven_denial_exits_1(monkeypatch: pytest.MonkeyPatch) -> None:
+    base = make_dnssec()
+    unproven = ZoneCheck(
+        "example.com.",
+        ZoneStatus.BOGUS,
+        summary="com. says there's no DS record, but no NSEC or NSEC3 records came with it",
+        kind=BogusKind.UNPROVEN_DENIAL,
+    )
+    patch_dnssec(
+        monkeypatch, dataclasses.replace(base, zones=(*base.zones[:2], unproven), records=())
+    )
+
+    result = runner.invoke(cli_app.app, ["dnssec", "example.com"])
+    output = plain(result.output)
+
+    assert result.exit_code == 1
+    assert "✗ com. says there's no DS record" in output
+    assert "A DNSSEC denial for example.com can't be verified" in output
+
+
 def test_dnssec_missing_name_exits_1(monkeypatch: pytest.MonkeyPatch) -> None:
     base = make_dnssec()
     patch_dnssec(monkeypatch, dataclasses.replace(base, zones=base.zones[:2], name_missing=True))

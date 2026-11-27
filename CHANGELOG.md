@@ -6,6 +6,15 @@ All notable changes to dnskit are listed here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `dnssec` (and `doctor`'s DNSSEC check) now checks the signed NSEC/NSEC3 proof behind "no
+  DS record" and "doesn't exist" answers. Before, someone on the network could hide a
+  signed domain's DS record and dnskit reported "DNSSEC isn't enabled", or forge NXDOMAIN
+  and dnskit reported the name missing with a validated chain. An unproven denial is now
+  **A DNSSEC denial for … can't be verified** (bogus, exit code 1), and a DS query that
+  fails is "couldn't check" rather than "not signed".
+
 ### Added
 
 - Releases come with signed build provenance: GitHub's attestations for the wheel and source

@@ -101,8 +101,17 @@ structured so the DNS logic can be reused by more than one front end.
     SERVFAIL), all queries in parallel, then validates itself with `dns.dnssec`
     (needs `cryptography`: the `dnspython[dnssec]` dependency): root DNSKEYs against
     `ROOT_TRUST_ANCHORS` (KSK-2017 + KSK-2024), then per zone cut (a parent of the
-    name with NS or DS) the signed DS, a DNSKEY matching it, and the signed key set;
-    then the zone's SOA and the name's A. `ZoneStatus` per link, `DnssecStatus`
+    name with a DS, or whose signed denial proof shows a delegation) the signed DS, a
+    DNSKEY matching it, and the signed key set; then the zone's SOA and the name's A.
+    Every denial needs proof: no DS (NOERROR) → `denial.prove_no_ds`, NXDOMAIN on the NS
+    or DS query → `prove_nxdomain`, both against the enclosing zone's validated keys and
+    the response's authority section (`Fetched.authority`). Unproven → BOGUS
+    `UNPROVEN_DENIAL`, never UNSIGNED or `name_missing`; `Proof.NOT_A_ZONE` (exists,
+    empty non-terminal or wildcard, no NS) → part of its parent zone; UNSIGNED_ZONE /
+    OPT_OUT → UNSIGNED; NO_NAME (incl. compact denial's NXNAME) → `name_missing`. A DS
+    query with another rcode (SERVFAIL) is UNKNOWN. `denial.py` implements RFC 4035 5.4 /
+    RFC 5155 8 / RFC 6840 4.1 (no NSEC from wildcard-expanded signatures, nothing below a
+    delegation's NSEC, NSEC3 owners directly under the zone, SHA-1 only). `ZoneStatus` per link, `DnssecStatus`
     overall, `BogusKind` for the fix. `check_clock` compares the clock with the root SOA
     serial (YYYYMMDDnn) and the root RRSIG dates. No reply from a public `--server` →
     `check_blocking()`. A resolver that answers without RRSIGs sets
@@ -340,7 +349,11 @@ lookup failed / name doesn't exist, 2 invalid input.
     `tests/test_dnssec.py` signs a test root/com./example.com. with throwaway Ed25519
     keys and patches `ROOT_TRUST_ANCHORS` and `_choose_nameservers` (`world.strip` makes
     the system resolver drop RRSIGs; `world.serve(strips=False)` is a fallback); its root SOA
-    serial is today's date so the clock check passes. `tests/test_propagation.py`
+    serial is today's date so the clock check passes. Denials need proof there too:
+    `world.deny(name, "NS DS", *proof, rcode=...)` with `Zone.nsec(owner, next, types)`,
+    `Zone.nsec3_match(name, types)` and `Zone.nsec3_cover(name, opt_out=)` (fake hashes one
+    above/below the name's, salt AB, 0 iterations); a bare `del world.answers[...]` is now an
+    unproven denial. `tests/test_denial.py` tests the proofs alone with those helpers. `tests/test_propagation.py`
     patches `_query_one` and `check_blocking`; `tests/test_outside.py` patches
     `scan_adapters`, `classify_nameservers`, `probe_all` and `socket.socket`.
     `tests/test_doctor.py`'s `checks` fixture patches every check function and
