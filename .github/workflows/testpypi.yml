@@ -4,15 +4,14 @@ name: TestPyPI
 # tagging it: the same build as release.yml (build.yml), uploaded with Trusted Publishing
 # in the "testpypi" environment, then installed back from TestPyPI and run.
 #
+# It builds the branch chosen under "Use workflow from". There's deliberately no input for
+# another ref: building code from one ref while running as another (say main) would run that
+# code with the other ref's cache access, so a branch could poison main's cache.
+#
 # TestPyPI never accepts the same version twice, so a version that's already there is
 # skipped rather than failing the run; the install check then tests the copy already there.
 on:
   workflow_dispatch:
-    inputs:
-      ref:
-        description: Branch, tag or commit to build
-        type: string
-        default: main
 
 permissions:
   contents: read
@@ -20,8 +19,6 @@ permissions:
 jobs:
   build:
     uses: ./.github/workflows/build.yml
-    with:
-      ref: ${{ inputs.ref }}
 
   testpypi:
     name: Publish to TestPyPI

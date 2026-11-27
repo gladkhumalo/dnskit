@@ -401,6 +401,9 @@ lookup failed / name doesn't exist, 2 invalid input.
   worked) PyPI upload via Trusted Publishing in the `pypi` environment (manual approval).
   The build is the reusable `build.yml`, shared with the manual `testpypi.yml`
   (workflow_dispatch → test.pypi.org, `skip-existing`, then installs it back and runs it).
+  Neither takes a ref to build: build.yml checks out the triggering ref only, since checking
+  out another ref (e.g. a dispatch input) would run its code with this ref's cache access
+  (CodeQL actions/cache-poisoning/poisonable-step).
   README images are absolute raw.githubusercontent.com `main` URLs so they show on PyPI;
   `test_readme_screenshots.py` enforces it.
 - Workflows: every third-party action is pinned to a full commit SHA with a `# vX.Y.Z`

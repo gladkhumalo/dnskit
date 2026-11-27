@@ -210,9 +210,11 @@ environment, which waits for a maintainer's approval (Actions → the run → Re
 deployments). The upload uses PyPI's Trusted Publishing: there's no API token anywhere.
 
 To try a release first, run the **TestPyPI** workflow by hand (Actions → TestPyPI → Run
-workflow, on `main` or a branch). It runs the same build, uploads it to test.pypi.org (a
-version that's already there is skipped: TestPyPI never accepts the same version twice),
-then installs it back from TestPyPI and runs it. Check the project page there, especially
+workflow), choosing `main` or a branch under **Use workflow from**: it builds that branch.
+There's deliberately no way to build a different ref than the one it runs from, since that
+code would run with the other ref's cache access. It runs the same build, uploads it to
+test.pypi.org (a version that's already there is skipped: TestPyPI never accepts the same
+version twice), then installs it back from TestPyPI and runs it. Check the project page there, especially
 that the README and its screenshots display.
 
 The README's images use absolute `raw.githubusercontent.com/.../main/` URLs, so they also
