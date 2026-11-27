@@ -8,6 +8,10 @@ validating resolver hands over broken data instead of SERVFAIL), then checked he
   DNSKEYs, which must sign the zone's key set;
 - finally the zone's SOA and the name's A records, signed with the zone's keys.
 
+A missing DS record (DNSSEC off from there down) or a name that doesn't exist must come with
+the parent zone's signed NSEC/NSEC3 proof (`denial.py`); an unproven denial could be forged,
+so it's bogus, never "not signed" or "doesn't exist".
+
 Signatures are only valid between two dates, so a wrong system clock breaks validation;
 the root zone's SOA serial (YYYYMMDDnn) shows roughly what today's date is.
 """
@@ -35,6 +39,7 @@ import dns.rrset
 from dns.rdtypes.ANY.DNSKEY import DNSKEY
 from dns.rdtypes.ANY.DS import DS
 
+from dnskit.core.denial import Denial, Proof, prove_no_ds, prove_nxdomain
 from dnskit.core.diagnosis import Diagnosis
 from dnskit.core.lookup import _choose_nameservers
 from dnskit.core.nameservers import ResolverChoice
@@ -81,6 +86,7 @@ class BogusKind(StrEnum):
     BAD_SIGNATURE = "bad_signature"  # a signature doesn't verify
     EXPIRED = "expired"  # a signature is outside its validity dates
     MISSING_SIGNATURE = "missing_signature"  # records that should be signed aren't
+    UNPROVEN_DENIAL = "unproven_denial"  # "no DS" or "no such name" without signed proof
 
 
 class ClockState(StrEnum):
@@ -268,12 +274,24 @@ def _check_through(
         if zones[-1].status is not ZoneStatus.SECURE:
             break
         ns, ds, keys = (fetched[(suffix, t)] for t in ("NS", "DS", "DNSKEY"))
-        if ns.rcode == "NXDOMAIN":
-            name_missing = True
+        if "NXDOMAIN" in (ns.rcode, ds.rcode):
+            missing = _missing(suffix, ns, ds, parent_keys, now)
+            if missing is None:
+                name_missing = True
+            else:
+                zones.append(missing)
             break
-        if ns.cname or (ns.rrset is None and ds.rrset is None):
-            continue  # not a zone of its own (or an alias): part of its parent zone
-        zone = _check_zone(suffix, ds, keys, parent_keys, now)
+        if ns.cname:
+            continue  # an alias: part of its parent zone
+        denial = None
+        if ds.rrset is None and ds.rcode == "NOERROR":
+            denial = prove_no_ds(suffix, ds.authority, parent_keys, now)
+            if denial.proof is Proof.NOT_A_ZONE:
+                continue  # not a zone of its own: part of its parent zone
+            if denial.proof is Proof.NO_NAME:
+                name_missing = True
+                break
+        zone = _check_zone(suffix, ds, keys, parent_keys, now, denial)
         zones.append(zone)
         if zone.status is ZoneStatus.SECURE and keys.rrset is not None:
             parent_keys = keys.rrset
@@ -288,6 +306,23 @@ def _check_through(
             records.append(_check_records(qname, "A", a, parent_keys, now))
     return report(
         zones=tuple(zones), records=tuple(records), clock=clock, name_missing=name_missing
+    )
+
+
+def _missing(
+    name: dns.name.Name, ns: "Fetched", ds: "Fetched", zone_keys: dns.rrset.RRset, now: float
+) -> ZoneCheck | None:
+    """None when the zone's signed proof shows `name` doesn't exist; otherwise a bogus link."""
+    denial = prove_nxdomain(name, ns.authority, zone_keys, now)
+    if not denial.proven and ds.rcode == "NXDOMAIN":
+        denial = prove_nxdomain(name, ds.authority, zone_keys, now)
+    if denial.proven:
+        return None
+    return ZoneCheck(
+        name.to_text(),
+        ZoneStatus.BOGUS,
+        summary=f"{zone_keys.name.to_text()} says it doesn't exist, but {denial.reason}",
+        kind=BogusKind.UNPROVEN_DENIAL,
     )
 
 
@@ -312,6 +347,7 @@ class Fetched:
     rrsig: dns.rrset.RRset | None = None  # their signatures
     cname: bool = False  # the name is an alias
     error: str = ""
+    authority: tuple[dns.rrset.RRset, ...] = ()  # e.g. NSEC/NSEC3 proof of a denial
 
 
 def _send(query: dns.message.Message, address: str, timeout: float) -> dns.message.Message:
@@ -351,7 +387,13 @@ def _parse(
             rrsig = found
         elif found.rdtype == dns.rdatatype.CNAME:
             cname = True
-    return Fetched(dns.rcode.to_text(response.rcode()), rrset, rrsig, cname)
+    return Fetched(
+        dns.rcode.to_text(response.rcode()),
+        rrset,
+        rrsig,
+        cname,
+        authority=tuple(response.authority),
+    )
 
 
 # --- Validating ---------------------------------------------------------------------------
@@ -394,17 +436,32 @@ def _check_zone(
     keys: Fetched,
     parent_keys: dns.rrset.RRset,
     now: float,
+    denial: Denial | None = None,
 ) -> ZoneCheck:
+    """One link: the parent's DS and the zone's keys. `denial`: the checked proof when the
+    parent has no DS record."""
     text = zone.to_text()
     parent = zone.parent().to_text()
     info = _key_info(keys.rrset) if keys.rrset is not None else ()
     if ds.rcode is None or (keys.rcode is None and ds.rrset is not None):
         error = ds.error or keys.error
         return ZoneCheck(text, ZoneStatus.UNKNOWN, keys=info, summary=f"couldn't fetch: {error}")
+    if ds.rrset is None and ds.rcode != "NOERROR":
+        return ZoneCheck(text, ZoneStatus.UNKNOWN, keys=info, summary=f"couldn't fetch: {ds.rcode}")
     if ds.rrset is None:
-        summary = f"no DS record at {parent}: not signed"
+        if denial is None or not denial.proven:
+            reason = denial.reason if denial else "nothing proves it"
+            return ZoneCheck(
+                text,
+                ZoneStatus.BOGUS,
+                keys=info,
+                summary=f"{parent} says there's no DS record, but {reason}",
+                kind=BogusKind.UNPROVEN_DENIAL,
+            )
+        how = "NSEC3 opt-out" if denial.proof is Proof.OPT_OUT else denial.method
+        summary = f"no DS record at {parent} ({how} proof): not signed"
         if info:
-            summary = f"has keys, but no DS record at {parent}: the chain stops here"
+            summary = f"has keys, but no DS record at {parent} ({how} proof): the chain stops here"
         return ZoneCheck(text, ZoneStatus.UNSIGNED, keys=info, summary=summary)
 
     ds_info = tuple(_ds_info(d) for d in ds.rrset)
@@ -622,8 +679,9 @@ def explain_dnssec(report: DnssecReport) -> Diagnosis:
     if report.name_missing and report.status is DnssecStatus.SECURE:
         return Diagnosis(
             title=f"{name} doesn't exist",
-            explanation=f"The chain of trust validates down to {zone}, which says {name} "
-            "doesn't exist (NXDOMAIN), so there are no records of its own to check.",
+            explanation=f"The chain of trust validates down to {zone}, whose signed NSEC/NSEC3 "
+            f"records prove {name} doesn't exist (NXDOMAIN), so there are no records of its "
+            "own to check.",
             suggestion="Check the spelling, or check a name that has records.",
         )
     match report.status:
@@ -701,6 +759,19 @@ def _bogus(report: DnssecReport) -> Diagnosis:
         f"answer for {report.name} (SERVFAIL), so it looks down to most people, while "
         "resolvers that don't validate still answer."
     )
+    if problem.kind is BogusKind.UNPROVEN_DENIAL:
+        return Diagnosis(
+            title=f"A DNSSEC denial for {report.name} can't be verified",
+            explanation=f"{where}: {problem.summary}. In a signed zone, an answer saying a "
+            "record or name doesn't exist comes with signed NSEC or NSEC3 records that prove "
+            "it. Without valid proof the answer may be forged: someone on the network could "
+            "hide a DS record to switch DNSSEC off, or make a name that exists look missing. "
+            "Validating resolvers refuse such answers (SERVFAIL).",
+            suggestion="Check again through another DNS server, such as "
+            f"`dnskit dnssec {report.name} --server 8.8.8.8`. If that works, this network's "
+            "DNS server or something on the way drops or alters DNSSEC data. If it fails "
+            "too, the zone's NSEC/NSEC3 records are broken: contact its DNS host.",
+        )
     if problem.kind is BogusKind.EXPIRED and report.clock.state is ClockState.WRONG:
         return Diagnosis(
             title="Validation failed: this computer's clock is wrong",

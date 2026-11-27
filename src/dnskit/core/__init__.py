@@ -42,6 +42,7 @@ from dnskit.core.connectivity import (
     check_ipv6,
     tcp_connect,
 )
+from dnskit.core.denial import Denial, Proof, prove_no_ds, prove_nxdomain
 from dnskit.core.diagnosis import Diagnosis, explain, explain_reverse
 from dnskit.core.dnssec import (
     ROOT_TRUST_ANCHORS,
@@ -234,6 +235,7 @@ __all__ = [
     "ConfigError",
     "ConnectAttempt",
     "ConnectError",
+    "Denial",
     "Diagnosis",
     "DkimCheck",
     "DkimSelector",
@@ -267,6 +269,7 @@ __all__ = [
     "ProbeResult",
     "Problem",
     "ProblemKind",
+    "Proof",
     "PropagationAnswer",
     "PropagationReport",
     "PublicResolver",
@@ -330,6 +333,8 @@ __all__ = [
     "parse_target",
     "probe_all",
     "propagation",
+    "prove_no_ds",
+    "prove_nxdomain",
     "reach",
     "read_domains",
     "reverse_lookup",

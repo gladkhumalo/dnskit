@@ -1718,6 +1718,12 @@ server validates. For each zone from the root down to the domain's own zone it c
    DS matches one of the zone's **keys**, and that key signs the zone's key set.
 3. **The records**: the zone's SOA record and the name's A records are signed with the
    zone's keys, and the signatures haven't expired.
+4. **Every "doesn't exist"**: when a parent has no DS record for a zone (DNSSEC is off from
+   there down), or a name doesn't exist, a signed zone proves it with signed **NSEC** or
+   **NSEC3** records. dnskit checks that proof, so a forged denial can't make a signed
+   domain look unsigned or a real name look missing. The Result column says which proof
+   was used, such as **(NSEC3 opt-out proof)**: most of `.com` uses NSEC3 opt-out, which
+   proves there's no signed delegation for the name.
 
 The records are fetched through your normal DNS server (with checking turned off, so a
 validating server hands over broken data instead of just failing), so `dnssec` works on a
@@ -1824,8 +1830,9 @@ probed 7s ago) · 4055 ms total
 | **✓ DNSSEC is on and validates** | Every link checks out. | `0` |
 | **– DNSSEC isn't enabled** | The parent has no DS record for the zone, so it's unsigned (most domains are). Lookups work normally, without forgery protection. If the zone has keys but no DS, the panel says it's **only half set up**: the DS was never added at the registrar. | `0` |
 | **✗ DNSSEC is broken** | A link fails: the DS matches none of the zone's keys, the zone has no keys although its parent has a DS, or a signature is expired or doesn't verify. Validating resolvers (Google, Cloudflare, Quad9, many ISPs) then refuse to answer for the domain (SERVFAIL), so it looks down to most people. The panel says what to fix at the registrar or DNS host. | `1` |
+| **✗ A DNSSEC denial for *name* can't be verified** | A signed zone said there's no DS record for a zone below it (or that the name doesn't exist) without valid signed NSEC/NSEC3 proof, for example **com. says there's no DS record, but no NSEC or NSEC3 records came with it**. The answer may be forged (someone on the network hiding a DS record to switch DNSSEC off, or making a name look missing), or the DNS server or something on the way drops DNSSEC data. Validating resolvers refuse such answers. Check again with `--server 8.8.8.8`: if that works, the problem is this network; if not, the zone's NSEC/NSEC3 records are broken. | `1` |
 | **? Couldn't check DNSSEC** | The DNS server didn't respond. If an outside `--server` doesn't respond because a VPN or firewall blocks it, the panel explains that instead. When your DNS server **strips DNSSEC signatures** and 8.8.8.8 and 1.1.1.1 can't be used either, it says **this network strips the signatures**. | `1` |
-| ***name* doesn't exist** | The chain validates, but the name itself doesn't exist. | `1` |
+| ***name* doesn't exist** | The chain validates, and the zone's signed NSEC/NSEC3 records prove the name itself doesn't exist. | `1` |
 
 Example of the most common result, DNSSEC not enabled:
 
@@ -1841,10 +1848,11 @@ DNSSEC chain of trust for google.com
 │             │ 38696                  │ (RSASHA256)            │ anchor 38696, 20326     │
 │ com.        │ 19718                  │ 1 KSK + 1 ZSK          │ ✓ DS at . matches key   │
 │             │                        │ (ECDSAP256SHA256)      │ 19718; keys signed      │
-│ google.com. │ none                   │ none                   │ – no DS record at com.: │
+│ google.com. │ none                   │ none                   │ – no DS record at com.  │
+│             │                        │                        │ (NSEC3 opt-out proof):  │
 │             │                        │                        │ not signed              │
 └─────────────┴────────────────────────┴────────────────────────┴─────────────────────────┘
-Clock: ✓ looks right (root zone from 2026-11-01)
+Clock: ✓ looks right (root zone from 2026-11-27)
 ┌─ – DNSSEC isn't enabled for google.com ─────────────────────────────────────────────────┐
 │ There's no DS record for google.com at com, so there's no chain of trust to it. Lookups │
 │ work normally, but resolvers can't tell a genuine answer from a forged one. DNSSEC      │
@@ -1856,7 +1864,7 @@ Clock: ✓ looks right (root zone from 2026-11-01)
 │ gives you at your registrar (many hosts do both in one step).                           │
 └─────────────────────────────────────────────────────────────────────────────────────────┘
 Resolver: 8.8.8.8 (this computer's DNS server 192.0.2.101 strips DNSSEC signatures; cached,
-probed 9s ago) · 562 ms total
+probed 2 min ago) · 457 ms total
 ```
 
 #### The clock check
@@ -3223,3 +3231,4 @@ This guide is updated with every new feature.
 | 0.1.0, release | Installation starts with `pipx install dnskit` from PyPI; git is only needed to install from a copy of the code. New CHANGELOG.md. |
 | Next release, provenance | Installation: how to check a release file's signed build provenance with `gh attestation verify`. |
 | Next release, untrusted text | Control characters in records and messages are shown as `\027`-style escapes, never sent to the terminal ([Reading the output](#6-reading-the-output)). `local`: `localhost` pointing anywhere but this computer is listed as a hosts file override; Cloudflare's interception test treats a private address in its answer as interception. |
+| Next release, DNSSEC denials | `dnssec` checks the signed NSEC/NSEC3 proof behind "no DS record" and "doesn't exist". The Result column names the proof (**(NSEC proof)**, **(NSEC3 proof)**, **(NSEC3 opt-out proof)**). Without valid proof the result is the new **✗ A DNSSEC denial for *name* can't be verified** (exit code 1), not "DNSSEC isn't enabled" or "doesn't exist". A DS query that fails (SERVFAIL) is **? Couldn't check**, no longer "not signed". google.com example recaptured. |

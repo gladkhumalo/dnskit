@@ -24,6 +24,12 @@ All notable changes to dnskit are listed here. The format follows
 - `dnskit local`'s Cloudflare interception test passed an answer carrying a private or
   reserved address. Cloudflare echoes your public address, so that now counts as
   interception.
+- `dnssec` (and `doctor`'s DNSSEC check) now checks the signed NSEC/NSEC3 proof behind "no
+  DS record" and "doesn't exist" answers. Before, someone on the network could hide a
+  signed domain's DS record and dnskit reported "DNSSEC isn't enabled", or forge NXDOMAIN
+  and dnskit reported the name missing with a validated chain. An unproven denial is now
+  **A DNSSEC denial for … can't be verified** (bogus, exit code 1), and a DS query that
+  fails is "couldn't check" rather than "not signed".
 
 ## [0.1.0] - 2026-11-13
 
