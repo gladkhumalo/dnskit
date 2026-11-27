@@ -4,13 +4,12 @@ name: Build
 # exactly the same checks. It builds the wheel and source archive, checks them with
 # twine, installs the wheel in a fresh venv and runs it, then uploads them as the "dist"
 # artifact for the calling workflow's publishing jobs.
+#
+# It always builds the ref that triggered the run (the tag, or the branch TestPyPI was run
+# from), never one passed in: code from another ref would run with this ref's cache access.
 on:
   workflow_call:
     inputs:
-      ref:
-        description: "The branch, tag or commit to build (default: the one that triggered the run)."
-        type: string
-        default: ""
       tag:
         description: If set, the build fails unless this tag is "v" + the pyproject.toml version.
         type: string
@@ -31,7 +30,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref }}
           persist-credentials: false  # nothing here pushes to the repository
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
