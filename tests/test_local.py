@@ -52,7 +52,7 @@ def local_env(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
         # The integrity and IPv6 checks: honest and working unless a test says otherwise.
         hijacked={},  # nameserver -> addresses it returns for a made-up name
         google=classify_google(RawAnswer("NOERROR", ("172.253.1.2",))),
-        cloudflare=classify_cloudflare(RawAnswer("NOERROR", ("203.0.113.5",))),
+        cloudflare=classify_cloudflare(RawAnswer("NOERROR", ("9.9.9.9",))),
         ipv6=IPv6Check(IPv6State.NOT_AVAILABLE, None, "www.google.com", None, "not available"),
         hijack_checked=[],
         ipv6_nameservers=[],
@@ -381,6 +381,33 @@ def test_parse_hosts_keeps_only_overrides() -> None:
         HostsEntry(7, "127.0.0.1", ("myapp.test",), HostsKind.LOCAL),
         HostsEntry(8, "203.0.113.7", ("intranet.example",), HostsKind.REDIRECT),
     ]
+
+
+def test_parse_hosts_reports_localhost_pointed_elsewhere() -> None:
+    text = "203.0.113.9 localhost\n198.51.100.4 ip6-localhost evil.example\n"
+
+    assert parse_hosts(text) == [
+        HostsEntry(1, "203.0.113.9", ("localhost",), HostsKind.REDIRECT),
+        HostsEntry(2, "198.51.100.4", ("ip6-localhost", "evil.example"), HostsKind.REDIRECT),
+    ]
+
+
+@pytest.mark.parametrize(
+    "stock",
+    [
+        # Ubuntu / Debian
+        "127.0.0.1 localhost\n127.0.1.1 mypc\n::1 ip6-localhost ip6-loopback\n"
+        "fe00::0 ip6-localnet\nff00::0 ip6-mcastprefix\nff02::1 ip6-allnodes\n"
+        "ff02::2 ip6-allrouters\n",
+        # macOS, current and older
+        "127.0.0.1\tlocalhost\n255.255.255.255\tbroadcasthost\n::1 localhost\n"
+        "fe80::1%lo0 localhost\n",
+        # A server listing its own name with its LAN address
+        "127.0.0.1 localhost\n10.0.0.5 mypc.example mypc\n",
+    ],
+)
+def test_parse_hosts_ignores_stock_files(stock: str) -> None:
+    assert parse_hosts(stock, "mypc.example") == []
 
 
 def test_read_hosts(tmp_path: Path) -> None:
