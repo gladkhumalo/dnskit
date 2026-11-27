@@ -107,8 +107,10 @@ changing.
    - help text with examples and exit codes (`_epilog`);
    - a renderer in `cli/render.py`.
 
-   Wrap any text that didn't come from you in `rich.markup.escape(...)`: Rich treats
-   `[something]` as markup and silently drops it. If an option should be settable in the
+   Wrap any text that didn't come from you in `escape(...)` from `dnskit.cli.render` (not
+   Rich's own): Rich treats `[something]` as markup and silently drops it, and DNS data
+   can carry control characters that a terminal would run as commands. dnskit's `escape`
+   shows them as zone-file escapes instead. If an option should be settable in the
    config file, add it to `COMMAND_SETTINGS` in `core/config.py`.
 3. **Keep exit codes stable.** Scripts depend on them.
 

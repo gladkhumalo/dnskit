@@ -12,6 +12,19 @@ All notable changes to dnskit are listed here. The format follows
   archive, also attached to the release as `dnskit-X.Y.Z.sigstore.json`. Check a downloaded
   file with `gh attestation verify <file> --repo gladkhumalo/dnskit`.
 
+### Fixed
+
+- Control characters in DNS records and messages (for example in a hostile domain's SPF or
+  TXT record) could reach the terminal as escape sequences, able to reset it, move the
+  cursor or change the window title. They're now shown as `\027`-style escapes. `--json`
+  output is unchanged.
+- `dnskit local` didn't list a hosts file line pointing `localhost` at another address,
+  such as `203.0.113.9 localhost`. It now does; the standard lines systems ship with are
+  still left out.
+- `dnskit local`'s Cloudflare interception test passed an answer carrying a private or
+  reserved address. Cloudflare echoes your public address, so that now counts as
+  interception.
+
 ## [0.1.0] - 2026-11-13
 
 The first release. Every command explains what it finds in plain English, with a suggested
