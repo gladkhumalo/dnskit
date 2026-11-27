@@ -196,7 +196,10 @@ def classify_cloudflare(answer: RawAnswer) -> InterceptionCheck:
         return _unknown("Cloudflare", CLOUDFLARE_DNS, answer)
     got = _describe(answer)
     address = next((ip for ip in map(_parse_ip, answer.values) if ip is not None), None)
-    if answer.rcode == "NOERROR" and address is not None:
+    # whoami.cloudflare echoes the client's own *public* address, so a genuine answer is a
+    # global IP. A private/reserved address means something on the path answered instead of
+    # Cloudflare (an interceptor that returns a LAN address), so don't pass it as clean.
+    if answer.rcode == "NOERROR" and address is not None and address.is_global:
         return InterceptionCheck(
             "Cloudflare", CLOUDFLARE_DNS, Verdict.OK, str(address), "answered by Cloudflare", got
         )

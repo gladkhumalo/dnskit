@@ -383,6 +383,16 @@ def test_parse_hosts_keeps_only_overrides() -> None:
     ]
 
 
+def test_parse_hosts_reports_standard_name_remapped_to_a_real_address() -> None:
+    # A "standard" name (localhost / this computer's name) pointed at a real address is an
+    # override the OS honors, so it must be reported, not silently dropped as boilerplate.
+    entries = parse_hosts("6.6.6.6 localhost\n203.0.113.7 mypc\n", "mypc.example")
+    assert entries == [
+        HostsEntry(1, "6.6.6.6", ("localhost",), HostsKind.REDIRECT),
+        HostsEntry(2, "203.0.113.7", ("mypc",), HostsKind.REDIRECT),
+    ]
+
+
 def test_read_hosts(tmp_path: Path) -> None:
     path = tmp_path / "hosts"
     path.write_text("203.0.113.7 intranet.example\n", encoding="utf-8")

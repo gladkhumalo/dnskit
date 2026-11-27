@@ -163,10 +163,19 @@ def test_google_without_an_address_is_intercepted(answer: RawAnswer, response: s
 
 
 def test_cloudflare_answers_with_your_address() -> None:
-    check = classify_cloudflare(RawAnswer("NOERROR", ("203.0.113.5",)))
+    check = classify_cloudflare(RawAnswer("NOERROR", ("93.184.216.34",)))
 
     assert check.verdict is Verdict.OK
     assert check.summary == "answered by Cloudflare"  # your address stays out of the output
+
+
+def test_cloudflare_private_address_is_intercepted() -> None:
+    # whoami.cloudflare echoes your *public* address; a NOERROR answer carrying a LAN/reserved
+    # address means an interceptor replied, not Cloudflare, so it must not be reported as clean.
+    for value in ("192.168.1.1", "10.0.0.1", "127.0.0.1"):
+        check = classify_cloudflare(RawAnswer("NOERROR", (value,)))
+        assert check.verdict is Verdict.SUSPECT, value
+        assert check.answered_by is None
 
 
 @pytest.mark.parametrize(

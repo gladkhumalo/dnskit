@@ -168,3 +168,25 @@ def test_make_resolver_uses_only_the_given_servers() -> None:
 
 def test_txt_text_leaves_unquoted_text_alone() -> None:
     assert lookup_mod.txt_text("v=spf1 -all") == "v=spf1 -all"
+
+
+def test_txt_text_joins_quoted_strings_and_undoes_printable_escapes() -> None:
+    assert lookup_mod.txt_text('"v=spf1 include:a" " -all"') == "v=spf1 include:a -all"
+    assert lookup_mod.txt_text(r'"a\065b"') == "aAb"  # \065 == 'A'
+
+
+def test_txt_text_neutralises_control_bytes() -> None:
+    # dnspython prints a raw ESC byte in a TXT record as the escape \027; txt_text must not
+    # turn it back into a raw 0x1b that would run as an ANSI sequence in the terminal.
+    out = lookup_mod.txt_text(r'"v=spf1\027[32mok\027[0m"')
+    assert "\x1b" not in out
+    assert out == "v=spf1\\x1b[32mok\\x1b[0m"
+
+
+def test_txt_text_neutralises_c1_and_del_bytes() -> None:
+    # C1 controls (0x80-0x9f) and DEL (0x7f) survive JSON output with ensure_ascii=False and
+    # act as 8-bit CSI/OSC on some terminals, so they are escaped too. \DDD is decimal:
+    # 109/111 == "mo", 155 == 0x9b, 157 == 0x9d, 127 == 0x7f.
+    out = lookup_mod.txt_text(r'"\109\111\111\155\157\127"')  # "moo" + 0x9b 0x9d 0x7f
+    assert out == "moo\\x9b\\x9d\\x7f"
+    assert not any(ord(c) < 0x20 or 0x7F <= ord(c) <= 0x9F for c in out)

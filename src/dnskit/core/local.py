@@ -335,13 +335,19 @@ def parse_hosts(text: str, hostname: str = "") -> list[HostsEntry]:
         fields = line.split("#", 1)[0].split()
         if len(fields) < 2:
             continue
-        ip, names = fields[0], tuple(n for n in fields[1:] if n.lower() not in standard)
+        ip, raw_names = fields[0], tuple(fields[1:])
+        names = tuple(n for n in raw_names if n.lower() not in standard)
         try:
             address = ipaddress.ip_address(ip.split("%", 1)[0])
         except ValueError:
             continue  # not a valid line; the OS ignores it too
         if not names:
-            continue
+            # Only boilerplate (localhost/this computer's name mapped to loopback or 0.0.0.0) is
+            # safe to drop. A *standard* name pointed at a real address — e.g. `6.6.6.6 localhost`
+            # — is an override the OS honors, so keep it rather than hide it.
+            if address.is_loopback or address.is_unspecified:
+                continue
+            names = raw_names
         if address.is_unspecified:
             kind = HostsKind.BLOCKED
         elif address.is_loopback:

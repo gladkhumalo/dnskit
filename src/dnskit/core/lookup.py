@@ -22,6 +22,16 @@ TEXT_RTYPES = frozenset({"TXT", "SPF"})
 _TXT_STRING = re.compile(r'"((?:[^"\\]|\\.)*)"')
 _TXT_ESCAPE = re.compile(r"\\(\d{3}|.)")
 
+# Control bytes (C0, DEL, C1) have no meaning in a TXT record's text, and left raw they are
+# ANSI/terminal escape sequences: a record such as `"v=spf1\027[32m ... "` would repaint the
+# terminal (forge a verdict, hide a finding, move the cursor, write OSC hyperlinks). Keep them
+# visible and inert by showing each as its \xNN escape instead of the raw byte.
+_CONTROL_BYTES = {code: f"\\x{code:02x}" for code in (*range(0x20), 0x7F, *range(0x80, 0xA0))}
+
+
+def _strip_control(text: str) -> str:
+    return text.translate(_CONTROL_BYTES)
+
 # errno values meaning "this machine has no route to the network". Windows socket errors
 # carry WSA codes (10050 WSAENETDOWN, 10051 WSAENETUNREACH, 10065 WSAEHOSTUNREACH).
 _NO_ROUTE_ERRNOS = {errno.ENETDOWN, errno.ENETUNREACH, errno.EHOSTUNREACH, 10050, 10051, 10065}
@@ -186,17 +196,20 @@ def _query_one(
 
 
 def txt_text(value: str) -> str:
-    """A TXT record's text as dnspython prints it, unquoted: the strings joined, escapes undone.
+    r"""A TXT record's text as dnspython prints it, unquoted: the strings joined, escapes undone.
 
     `"v=spf1 include:a" " -all"` becomes `v=spf1 include:a -all`. A value without quotes is
-    returned unchanged.
+    returned unchanged. Control bytes are shown as their `\xNN` escape, never emitted raw, so a
+    hostile record can't drive terminal escape sequences through the output.
     """
     parts = _TXT_STRING.findall(value)
     if not parts:
-        return value
+        return _strip_control(value)
     unescape = _TXT_ESCAPE.sub
-    return "".join(
-        unescape(lambda m: chr(int(m[1])) if m[1].isdigit() else m[1], part) for part in parts
+    return _strip_control(
+        "".join(
+            unescape(lambda m: chr(int(m[1])) if m[1].isdigit() else m[1], part) for part in parts
+        )
     )
 
 
