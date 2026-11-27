@@ -1,6 +1,7 @@
 # dnskit
 
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/gladkhumalo/dnskit/badge)](https://scorecard.dev/viewer/?uri=github.com/gladkhumalo/dnskit)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/17189/badge)](https://www.bestpractices.dev/projects/17189)
 
 **Find out why DNS isn't working, in plain English.**
 

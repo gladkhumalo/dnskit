@@ -10,9 +10,10 @@ requests.** Report them privately through GitHub instead:
 3. Describe the problem: what an attacker could do, the steps or input that trigger it, the
    dnskit version (`dnskit --version`), and your operating system.
 
-Only the maintainer can see the report. You'll get a reply there, and you can discuss the fix
-and its disclosure in the same private advisory. Once a fix is released, the advisory is
-published, crediting you unless you'd rather not be named.
+Only the maintainer can see the report. We aim to give an initial response within 14 days.
+The reply comes in the same private advisory, where you can also discuss the fix and its
+disclosure. Once a fix is released, the advisory is published, crediting you unless you'd
+rather not be named.
 
 ## Supported versions
 
